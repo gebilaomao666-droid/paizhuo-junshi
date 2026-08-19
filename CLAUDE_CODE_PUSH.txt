@@ -1,0 +1,18 @@
+给 Claude Code 的指令（只负责合并文件和推送，不需要它重写逻辑）：
+
+1. 打开现有 paizhuo-junshi 仓库。
+2. 保留仓库现有 index.html 不变。
+3. 把这个 ZIP 中除 __pycache__/debug 临时内容外的所有文件复制到仓库根目录。
+4. 确认根目录同时存在 index.html 和 live.html。
+5. 不要提交 config.json（这是本机标定数据）；提交 config.example.json。
+6. 建议在 .gitignore 加：
+   config.json
+   debug/
+   __pycache__/
+   *.pyc
+7. 运行：python -m py_compile vision_core.py vision_server.py calibrate.py learn_templates.py smoke_test.py
+8. 运行：python smoke_test.py
+9. 然后 git add / commit / push 到用户指定的 GitLab 仓库。
+
+建议 commit message：
+feat: add Android realtime vision bridge for poker assistant

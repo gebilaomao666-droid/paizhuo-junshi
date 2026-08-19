@@ -1,0 +1,19 @@
+{
+  "adb_path": "adb",
+  "device_serial": "",
+  "fps": 3.0,
+  "stable_frames": 3,
+  "default_players": 9,
+  "template_threshold": 0.72,
+  "card_inner_boxes": {
+    "rank": [0.02, 0.02, 0.38, 0.30],
+    "suit": [0.02, 0.25, 0.38, 0.52]
+  },
+  "rois": {
+    "hole": [],
+    "board": [],
+    "pot": null,
+    "call": null,
+    "players": null
+  }
+}

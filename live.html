@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>牌桌军师 · 实时模式</title>
+<style>
+  :root{color-scheme:dark;--bg:#07130e;--panel:#132a1f;--line:#2a4c39;--ink:#efeAD9;--muted:#8fac9a;--gold:#d9a441;--good:#56bd82;--bad:#e0564c}
+  *{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--bg);font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink)}
+  .layout{height:100%;display:grid;grid-template-columns:minmax(360px,560px) minmax(320px,1fr);gap:10px;padding:10px}
+  .app{width:100%;height:100%;border:1px solid var(--line);border-radius:12px;background:#07130e}
+  .side{display:flex;flex-direction:column;gap:10px;min-width:0}
+  .hud,.screenbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .title{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;color:var(--gold)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--bad);display:inline-block;margin-right:6px}.dot.on{background:var(--good)}
+  .cards{font-size:24px;font-family:Georgia,serif;letter-spacing:2px;margin:10px 0}.muted{color:var(--muted);font-size:12px}
+  .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.kv>div{background:#0c2018;border-radius:8px;padding:8px}.kv b{display:block;font-size:18px;color:var(--gold)}
+  #screen{width:100%;max-height:calc(100vh - 250px);object-fit:contain;background:#000;border-radius:8px;margin-top:8px}
+  .err{color:var(--bad);font-size:12px;margin-top:8px;min-height:18px}
+  @media(max-width:900px){.layout{grid-template-columns:1fr;height:auto}.app{height:850px}.side{min-height:500px}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <iframe id="app" class="app" src="index.html" title="牌桌军师"></iframe>
+  <div class="side">
+    <div class="hud">
+      <div class="title"><span>实时视觉桥接</span><span class="muted"><i id="dot" class="dot"></i><span id="status">连接中</span></span></div>
+      <div id="cards" class="cards">—</div>
+      <div class="kv">
+        <div><span class="muted">玩家</span><b id="players">—</b></div>
+        <div><span class="muted">底池</span><b id="pot">—</b></div>
+        <div><span class="muted">跟注</span><b id="call">—</b></div>
+      </div>
+      <div class="muted" style="margin-top:8px">识别置信度 <span id="conf">—</span> · 连续稳定帧后才灌入军师</div>
+      <div id="err" class="err"></div>
+    </div>
+    <div class="screenbox">
+      <div class="title"><span>手机画面</span><span class="muted">ADB 实时截图</span></div>
+      <img id="screen" src="/api/screenshot.jpg" alt="手机实时画面">
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var app=document.getElementById('app'), lastSig='', lastFrame=0;
+  var suitMap={s:0,h:1,d:2,c:3}, rankMap={'2':0,'3':1,'4':2,'5':3,'6':4,'7':5,'8':6,'9':7,T:8,J:9,Q:10,K:11,A:12};
+  function cardId(code){ if(!code||code.length<2)return -1; var r=rankMap[code[0].toUpperCase()],s=suitMap[code[1].toLowerCase()]; return r==null||s==null?-1:(r<<2)+s; }
+  function txtCard(c){var sy={s:'♠',h:'♥',d:'♦',c:'♣'}; return c?c[0].toUpperCase()+sy[c[1].toLowerCase()]:''}
+  function inject(s){
+    var w=app.contentWindow,d=app.contentDocument;
+    if(!w||!d||!Array.isArray(w.slots)||typeof w.scheduleCompute!=='function')return false;
+    var ids=(s.hole||[]).concat(s.board||[]).map(cardId);
+    if(ids.length<2||ids.some(function(x){return x<0}))return false;
+    var next=[-1,-1,-1,-1,-1,-1,-1];
+    for(var i=0;i<Math.min(ids.length,7);i++)next[i]=ids[i];
+    w.slots=next;
+    if(s.players>=2&&s.players<=10){w.nOpp=s.players-1; var ts=d.getElementById('tableSize'); if(ts)ts.value=String(s.players);}
+    var pot=d.getElementById('potInput'),call=d.getElementById('callInput');
+    if(pot)pot.value=s.pot==null?'':String(s.pot);
+    if(call)call.value=s.call==null?'':String(s.call);
+    if(typeof w.renderSlots==='function')w.renderSlots();
+    if(typeof w.renderPicker==='function')w.renderPicker();
+    // If exact pot/call are unavailable, infer the existing bet-level UI from call/pot ratio when possible.
+    if(typeof w.setBetLevel==='function' && s.pot!=null && s.call!=null && s.pot>0){
+      var r=s.call/s.pot, lv=r<=0?0:r<0.38?1:r<0.75?2:r<1.4?3:4; w.setBetLevel(lv);
+    } else w.scheduleCompute();
+    return true;
+  }
+  async function poll(){
+    try{
+      var r=await fetch('/api/state',{cache:'no-store'}),s=await r.json();
+      document.getElementById('dot').classList.toggle('on',!!s.ok);
+      document.getElementById('status').textContent=s.stable?'已同步':(s.ok?'确认中':'未识别');
+      document.getElementById('cards').textContent=((s.hole||[]).map(txtCard).join(' ')||'—')+'  |  '+((s.board||[]).map(txtCard).join(' ')||'—');
+      document.getElementById('players').textContent=s.players==null?'—':s.players;
+      document.getElementById('pot').textContent=s.pot==null?'—':s.pot;
+      document.getElementById('call').textContent=s.call==null?'—':s.call;
+      document.getElementById('conf').textContent=s.confidence?Math.round(s.confidence*100)+'%':'—';
+      document.getElementById('err').textContent=s.error||'';
+      if(s.stable){var sig=JSON.stringify([s.hole,s.board,s.players,s.pot,s.call]); if(sig!==lastSig){if(inject(s))lastSig=sig;}}
+      if(s.frame_id!==lastFrame){lastFrame=s.frame_id;document.getElementById('screen').src='/api/screenshot.jpg?t='+Date.now();}
+    }catch(e){document.getElementById('dot').classList.remove('on');document.getElementById('status').textContent='服务离线';document.getElementById('err').textContent=String(e)}
+  }
+  app.addEventListener('load',function(){setTimeout(poll,100)});
+  setInterval(poll,300);
+})();
+</script>
+</body>
+</html>
