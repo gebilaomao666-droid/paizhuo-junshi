@@ -102,17 +102,30 @@
 
   /* 选牌器 */
   .picker { margin-top: 12px; }
-  .pickrow { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; margin-bottom: 3px; }
+  .pickrow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 5px; }
   .pickcard {
-    appearance: none; border: 1px solid #C9C2AE; border-radius: 4px;
+    appearance: none; border: 1px solid #C9C2AE; border-radius: 6px;
     background: var(--card-face); color: var(--card-ink);
-    font-family: var(--serif); font-weight: 700; font-size: 12px;
-    padding: 5px 0 3px; cursor: pointer; line-height: 1.1;
-    display: flex; flex-direction: column; align-items: center;
+    font-family: var(--serif); font-weight: 700; font-size: 21px;
+    padding: 11px 0; cursor: pointer; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
   }
-  .pickcard .s { font-size: 11px; }
   .pickcard.red { color: var(--card-red); }
-  .pickcard:disabled { opacity: .18; cursor: default; }
+  .pickcard:disabled { opacity: .16; cursor: default; }
+  .suitrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .suitrow .pickcard { font-size: 26px; padding: 13px 0; }
+  .picksteps { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .picksteps .stepnow { font-size: 14px; color: var(--brass); font-weight: 700; }
+  .picksteps .chosen {
+    background: var(--card-face); color: var(--card-ink); border: 1px solid #C9C2AE;
+    border-radius: 5px; font-family: var(--serif); font-weight: 700;
+    font-size: 17px; padding: 3px 8px; line-height: 1.2;
+  }
+  .picksteps .chosen.red { color: var(--card-red); }
+  .picksteps .back {
+    appearance: none; border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; margin-left: auto;
+  }
   .pickhint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 
   /* 控制行 */
@@ -340,7 +353,7 @@
             <option value="10">10人局（顶格）</option>
           </select>
         </div>
-        <button class="clearbtn" id="clearAll">清空重来</button>
+        <button class="clearbtn" id="clearAll" style="color:var(--brass);border-color:var(--brass);font-weight:700">下一手 · 清空</button>
       </div>
       <div class="controls" style="margin-top:10px">
         <span class="steplabel">桌上情况</span>
@@ -800,7 +813,7 @@ function buildSlots() {
 function onSlotClick(e) {
   var i = +e.currentTarget.dataset.idx;
   if (slots[i] >= 0 && activeSlot === i) { slots[i] = -1; }   /* 再点一下已选中的牌=清掉它 */
-  activeSlot = i;
+  activeSlot = i; pendRank = -1;
   renderSlots(); renderPicker(); scheduleCompute();
 }
 function renderSlots() {
@@ -815,45 +828,68 @@ function renderSlots() {
       el.textContent = '＋';
     }
   });
-  var holeCnt = (slots[0] >= 0 ? 1 : 0) + (slots[1] >= 0 ? 1 : 0);
-  $('pickhint').textContent = holeCnt < 2
-    ? '先选你手里的两张底牌；翻牌后再把公共牌点进去。'
-    : '翻牌/转牌/河牌发出来后，继续点进对应槽位，胜率会实时更新。点已选的牌可以取消。';
+  var filled = slots.filter(function (c) { return c >= 0; }).length;
+  var hint;
+  if (filled < 2) hint = '👉 现在：录你手里那两张牌（点数字→点花色，一张两下）';
+  else if (filled === 2) hint = '✅ 底牌已录，建议已经出来了。等翻牌发出来，再录那三张公共牌。';
+  else if (filled < 5) hint = '👉 继续录翻牌（一共三张）';
+  else if (filled === 5) hint = '✅ 翻牌已录。等转牌发出来再录第4张。';
+  else if (filled === 6) hint = '✅ 转牌已录。等河牌发出来再录最后一张。';
+  else hint = '✅ 五张公共牌全齐，这就是最终胜率。下一手记得点「清空重来」。';
+  $('pickhint').textContent = hint;
 }
-function buildPicker() {
-  var pk = $('picker'); pk.innerHTML = '';
-  for (var s = 0; s < 4; s++) {
-    var row = document.createElement('div'); row.className = 'pickrow';
-    for (var r = 12; r >= 0; r--) {
-      var c = r * 4 + s;
-      var b = document.createElement('button');
-      b.className = 'pickcard' + (isRed(c) ? ' red' : '');
-      b.dataset.card = c;
-      b.innerHTML = RANK_CH[r] + '<span class="s">' + SUIT_CH[s] + '</span>';
-      b.setAttribute('aria-label', RANK_CH[r] + SUIT_CH[s]);
-      b.addEventListener('click', onPick);
-      row.appendChild(b);
-    }
-    pk.appendChild(row);
+/* 两步选牌：先点数字，再点花色。手指大、找得快 */
+var pendRank = -1;
+function buildPicker() { renderPicker(); }
+function renderPicker() {
+  var pk = $('picker');
+  var used = {};
+  slots.forEach(function (c) { if (c >= 0) used[c] = 1; });
+  var html = '<div class="picksteps">';
+  if (pendRank < 0) {
+    html += '<span class="stepnow">① 点数字</span>';
+  } else {
+    html += '<span class="stepnow">② 点花色</span><span class="chosen">' + RANK_CH[pendRank] + '</span>' +
+            '<button class="back" id="pickBack">重选数字</button>';
   }
-  renderPicker();
+  html += '</div>';
+  if (pendRank < 0) {
+    html += '<div class="pickrow">';
+    for (var r = 12; r >= 0; r--) {
+      var full = true;
+      for (var s = 0; s < 4; s++) if (!used[r * 4 + s]) full = false;
+      html += '<button class="pickcard" data-rank="' + r + '"' + (full ? ' disabled' : '') + '>' + RANK_CH[r] + '</button>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="suitrow">';
+    for (s = 0; s < 4; s++) {
+      var c2 = pendRank * 4 + s;
+      html += '<button class="pickcard' + (isRed(c2) ? ' red' : '') + '" data-card="' + c2 + '"' +
+              (used[c2] ? ' disabled' : '') + '>' + SUIT_CH[s] + '</button>';
+    }
+    html += '</div>';
+  }
+  pk.innerHTML = html;
+  pk.querySelectorAll('[data-rank]').forEach(function (b) {
+    b.addEventListener('click', function () { pendRank = +b.dataset.rank; renderPicker(); });
+  });
+  pk.querySelectorAll('[data-card]').forEach(function (b) {
+    b.addEventListener('click', function () { onPick(+b.dataset.card); });
+  });
+  if ($('pickBack')) $('pickBack').addEventListener('click', function () { pendRank = -1; renderPicker(); });
 }
-function onPick(e) {
-  var c = +e.currentTarget.dataset.card;
+function onPick(c) {
   if (slots.indexOf(c) >= 0) return;
   slots[activeSlot] = c;
+  pendRank = -1;
   var next = -1;
   for (var i = 0; i < 7; i++) if (slots[i] < 0) { next = i; break; }
   activeSlot = next >= 0 ? next : activeSlot;
   renderSlots(); renderPicker(); scheduleCompute();
 }
-function renderPicker() {
-  document.querySelectorAll('.pickcard').forEach(function (b) {
-    b.disabled = slots.indexOf(+b.dataset.card) >= 0;
-  });
-}
 $('clearAll').addEventListener('click', function () {
-  slots = [-1,-1,-1,-1,-1,-1,-1]; activeSlot = 0;
+  slots = [-1,-1,-1,-1,-1,-1,-1]; activeSlot = 0; pendRank = -1;
   renderSlots(); renderPicker(); scheduleCompute();
 });
 $('tableSize').addEventListener('change', function () { nOpp = +this.value - 1; scheduleCompute(); });
