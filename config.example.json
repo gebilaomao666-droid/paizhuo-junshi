@@ -1,6 +1,14 @@
 {
+  "capture_mode": "auto",
   "adb_path": "adb",
   "device_serial": "",
+  "window_title_keywords": [
+    "AirDroid Cast",
+    "LetsView",
+    "ApowerMirror",
+    "LonelyScreen",
+    "5KPlayer"
+  ],
   "fps": 3.0,
   "stable_frames": 3,
   "default_players": 9,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import threading
@@ -12,6 +13,11 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
+
+try:
+    import mss
+except Exception:  # optional for Android, required for Windows window capture
+    mss = None
 
 try:
     from rapidocr_onnxruntime import RapidOCR
@@ -49,6 +55,138 @@ def capture_android(cfg: dict, timeout: float = 4.0) -> np.ndarray:
     if frame is None:
         raise RuntimeError("无法解码手机截图")
     return frame
+
+
+DEFAULT_WINDOW_KEYWORDS = [
+    "AirDroid Cast",
+    "LetsView",
+    "ApowerMirror",
+    "LonelyScreen",
+    "5KPlayer",
+]
+
+
+def list_windows() -> List[dict]:
+    """Return visible, non-minimized Windows client areas."""
+    if os.name != "nt":
+        return []
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        try:
+            user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+    windows: List[dict] = []
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def callback(hwnd, _):
+        if not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+            return True
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return True
+        title_buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, title_buf, length + 1)
+        title = title_buf.value.strip()
+        rect = wintypes.RECT()
+        if not title or not user32.GetClientRect(hwnd, ctypes.byref(rect)):
+            return True
+        top_left = wintypes.POINT(rect.left, rect.top)
+        bottom_right = wintypes.POINT(rect.right, rect.bottom)
+        if not user32.ClientToScreen(hwnd, ctypes.byref(top_left)):
+            return True
+        if not user32.ClientToScreen(hwnd, ctypes.byref(bottom_right)):
+            return True
+        width = bottom_right.x - top_left.x
+        height = bottom_right.y - top_left.y
+        if width >= 160 and height >= 240:
+            windows.append({
+                "hwnd": int(hwnd),
+                "title": title,
+                "left": int(top_left.x),
+                "top": int(top_left.y),
+                "width": int(width),
+                "height": int(height),
+            })
+        return True
+
+    user32.EnumWindows(callback_type(callback), 0)
+    return windows
+
+
+def pick_window(windows: Sequence[dict], keywords: Sequence[str]) -> Optional[dict]:
+    wanted = [str(x).strip().lower() for x in keywords if str(x).strip()]
+    matches = [
+        w for w in windows
+        if any(k in str(w.get("title", "")).lower() for k in wanted)
+    ]
+    return max(matches, key=lambda w: int(w.get("width", 0)) * int(w.get("height", 0))) if matches else None
+
+
+def capture_window(cfg: dict) -> Tuple[np.ndarray, str]:
+    if os.name != "nt":
+        raise RuntimeError("投屏窗口采集目前需要 Windows")
+    if mss is None:
+        raise RuntimeError("缺少窗口采集依赖，请先双击 setup.bat")
+    keywords = cfg.get("window_title_keywords") or DEFAULT_WINDOW_KEYWORDS
+    target = pick_window(list_windows(), keywords)
+    if target is None:
+        names = " / ".join(str(x) for x in keywords)
+        raise RuntimeError(f"找不到苹果投屏窗口。请先打开投屏，窗口标题需包含：{names}")
+    box = {k: target[k] for k in ("left", "top", "width", "height")}
+    # mss.mss 与 with_cursor 参数在 Windows 上已废弃，优先用 mss.MSS()
+    grabber_factory = getattr(mss, "MSS", None) or mss.mss
+    with grabber_factory() as grabber:
+        shot = np.asarray(grabber.grab(box), dtype=np.uint8)
+    if shot.size == 0:
+        raise RuntimeError("投屏窗口截图为空，请确认窗口没有最小化")
+    return np.ascontiguousarray(shot[:, :, :3]), str(target["title"])
+
+
+class FrameSource:
+    """Choose Android ADB or an iPhone AirPlay receiver window."""
+
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+        raw = str(cfg.get("capture_mode", "auto")).strip().lower()
+        aliases = {"android": "adb", "iphone": "window", "ios": "window", "airplay": "window"}
+        self.mode = aliases.get(raw, raw)
+        if self.mode not in ("auto", "adb", "window"):
+            raise ValueError("capture_mode 只能是 auto / adb / window")
+        self.active_mode: Optional[str] = None
+        self.label = ""
+
+    def candidate_modes(self) -> List[str]:
+        if self.mode != "auto":
+            return [self.mode]
+        if self.active_mode == "window":
+            return ["window", "adb"]
+        return ["adb", "window"]
+
+    def capture(self) -> np.ndarray:
+        errors = []
+        for mode in self.candidate_modes():
+            try:
+                if mode == "adb":
+                    frame = capture_android(self.cfg)
+                    label = "Android · ADB"
+                else:
+                    frame, title = capture_window(self.cfg)
+                    label = f"iPhone · {title}"
+                self.active_mode = mode
+                self.label = label
+                return frame
+            except Exception as exc:
+                errors.append(f"{mode}: {exc}")
+        self.active_mode = None
+        self.label = ""
+        raise RuntimeError("未找到手机画面；" + "；".join(errors))
 
 
 def roi_px(frame: np.ndarray, roi: Optional[Sequence[float]]) -> Optional[np.ndarray]:
@@ -166,6 +304,7 @@ class VisionState:
     stable: bool = False
     frame_id: int = 0
     captured_at: float = 0.0
+    source: str = ""
     error: str = ""
 
     def __post_init__(self):
@@ -207,7 +346,7 @@ class PokerRecognizer:
             return None, score
         return r + s, score
 
-    def recognize(self, frame: np.ndarray, frame_id: int) -> VisionState:
+    def recognize(self, frame: np.ndarray, frame_id: int, source: str = "") -> VisionState:
         rois = self.cfg.get("rois") or {}
         hole, board, scores = [], [], []
         for r in rois.get("hole") or []:
@@ -245,6 +384,7 @@ class PokerRecognizer:
             stable=False,
             frame_id=frame_id,
             captured_at=time.time(),
+            source=source,
         )
 
 
@@ -275,9 +415,12 @@ class StableState:
 
 
 class VisionWorker:
-    def __init__(self, cfg_path: Path):
+    def __init__(self, cfg_path: Path, overrides: Optional[dict] = None):
         self.cfg_path = cfg_path
         self.cfg = load_config(cfg_path)
+        if overrides:
+            self.cfg.update({k: v for k, v in overrides.items() if v is not None})
+        self.frame_source = FrameSource(self.cfg)
         self.recognizer = PokerRecognizer(self.cfg)
         self.stabilizer = StableState(self.cfg.get("stable_frames", 3))
         self.lock = threading.Lock()
@@ -314,9 +457,9 @@ class VisionWorker:
         while not self.stop_event.is_set():
             t0 = time.time()
             try:
-                frame = capture_android(self.cfg)
+                frame = self.frame_source.capture()
                 self.frame_id += 1
-                state = self.recognizer.recognize(frame, self.frame_id)
+                state = self.recognizer.recognize(frame, self.frame_id, self.frame_source.label)
                 state = self.stabilizer.push(state)
                 with self.lock:
                     self.latest_frame = frame
@@ -336,6 +479,11 @@ class VisionWorker:
                         self.state = state
             except Exception as e:
                 with self.lock:
-                    self.state = VisionState(error=str(e), frame_id=self.frame_id, captured_at=time.time())
+                    self.state = VisionState(
+                        error=str(e),
+                        frame_id=self.frame_id,
+                        captured_at=time.time(),
+                        source=self.frame_source.label,
+                    )
             elapsed = time.time() - t0
             self.stop_event.wait(max(0.01, interval - elapsed))

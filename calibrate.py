@@ -5,7 +5,7 @@ from pathlib import Path
 
 import cv2
 
-from vision_core import ROOT, capture_android, load_config
+from vision_core import FrameSource, ROOT, load_config
 
 CFG_PATH = ROOT / "config.json"
 
@@ -30,8 +30,10 @@ def pick(frame, title, optional=False):
 
 def main():
     cfg = load_config(CFG_PATH)
-    print("正在从 Android 抓一张截图……")
-    frame = capture_android(cfg)
+    source = FrameSource(cfg)
+    print("正在自动查找 Android ADB 或 iPhone 投屏窗口……")
+    frame = source.capture()
+    print("已连接：", source.label)
     rois = {"hole": [], "board": []}
     for i in range(2):
         rois["hole"].append(pick(frame, f"底牌 {i+1} 的完整牌面位置"))
@@ -42,7 +44,9 @@ def main():
     rois["players"] = pick(frame, "剩余玩家人数数字区域", optional=True)
     cfg["rois"] = rois
     CFG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-    cv2.imwrite(str(ROOT / "debug" / "calibration_screen.png"), frame)
+    debug_dir = ROOT / "debug"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(debug_dir / "calibration_screen.png"), frame)
     print("已写入 config.json。下一步运行 python learn_templates.py")
 
 

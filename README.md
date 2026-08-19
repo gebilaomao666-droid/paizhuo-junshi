@@ -10,6 +10,7 @@
 - **陪练** — 内置完整 NLHE 牌局引擎，2~10 人桌，AI 对手有紧有松，轮到你时军师直接支招
 - **起手表** — 169 手起手牌按强度五档着色，点开看每档打法
 - **秘籍 / 规则** — 铁律、数字真相、对手类型、牌型排行、常见误区
+- **实时视觉** — Android 通过 ADB、iPhone 通过 Windows AirPlay 投屏窗口自动识别；详见 [README_LIVE.md](README_LIVE.md)
 
 ## 文件
 
@@ -19,6 +20,9 @@
 | `engine.js` | 核心引擎的 Node 版（评牌 + 蒙特卡洛 + 对手范围） |
 | `test_engine.js` | 30 项测试：牌型判定、大小比较、公认胜率基准校验 |
 | `ranking169.json` | 169 手起手牌按全下胜率降序排列 |
+| `live.html` | Android / iPhone 实时视觉总控页面 |
+| `vision_core.py` | ADB、Windows 投屏窗口采集与牌面识别 |
+| `README_LIVE.md` | 双端安装、标定与使用说明 |
 
 ## 引擎说明
 

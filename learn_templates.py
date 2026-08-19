@@ -5,7 +5,7 @@ from pathlib import Path
 
 import cv2
 
-from vision_core import ROOT, RANKS, SUITS, capture_android, inner_crop, load_config, roi_px
+from vision_core import FrameSource, ROOT, RANKS, SUITS, inner_crop, load_config, roi_px
 
 CFG_PATH = ROOT / "config.json"
 
@@ -28,7 +28,9 @@ def main():
     rank_box = inner.get("rank", [0.02, 0.02, 0.38, 0.30])
     suit_box = inner.get("suit", [0.02, 0.25, 0.38, 0.52])
 
-    frame = capture_android(cfg)
+    source = FrameSource(cfg)
+    frame = source.capture()
+    print("已连接：", source.label)
     print("依次看每个牌位。输入牌名，例如 As / Th / Qd / 7c；空着回车=这个位置没牌或不想学习。")
     for i, r in enumerate(all_rois):
         card = roi_px(frame, r)

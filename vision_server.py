@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import mimetypes
-import os
+import threading
+import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -67,17 +67,24 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--config", default="config.json")
+    ap.add_argument("--capture-mode", choices=("auto", "adb", "window"), default=None)
+    ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
 
     cfg_path = ROOT / args.config
-    worker = VisionWorker(cfg_path)
+    worker = VisionWorker(cfg_path, {"capture_mode": args.capture_mode})
     worker.start()
     Handler.worker = worker
     Handler.static_root = ROOT
 
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"牌桌军师实时助手: http://{args.host}:{args.port}/")
-    print("如果页面显示未识别，请先运行: python calibrate.py 以及 python learn_templates.py")
+    url = f"http://{args.host}:{args.port}/"
+    print(f"牌桌军师实时助手: {url}")
+    print("支持 Android ADB 与 iPhone AirPlay 投屏窗口；首次使用请先标定并学习模板。")
+    if not args.no_browser:
+        opener = threading.Timer(0.8, lambda: webbrowser.open(url))
+        opener.daemon = True
+        opener.start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
