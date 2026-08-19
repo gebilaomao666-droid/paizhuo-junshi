@@ -127,6 +127,7 @@
     appearance: none; border: 1px solid var(--line); background: transparent; color: var(--muted);
     border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; letter-spacing: 1px;
   }
+  .controls input[type="range"] { flex: 1; min-width: 90px; accent-color: var(--brass); }
 
   /* 结果 */
   .stage { font-size: 12px; color: var(--muted); letter-spacing: 2px; }
@@ -296,6 +297,11 @@
           <button id="styleNormal" aria-pressed="false">正常·前40%</button>
           <button id="styleTight" aria-pressed="false">下重注·前15%</button>
         </div>
+      </div>
+      <div class="controls" id="bluffRow" style="margin-top:10px" hidden>
+        <span class="steplabel">他有几成是在演？</span>
+        <input type="range" id="bluffSlider" min="0" max="50" step="5" value="20" aria-label="对手诈唬概率">
+        <span class="num" id="bluffVal" style="font-family:var(--serif);font-size:17px;min-width:38px;text-align:right;font-variant-numeric:tabular-nums">20%</span>
       </div>
     </section>
 
@@ -504,8 +510,9 @@ function evaluate7(cards) {
 }
 var CAT_NAMES = ['高牌', '一对', '两对', '三条', '顺子', '同花', '葫芦', '四条', '同花顺'];
 function handCategory(v) { return Math.floor(v / 1048576); } /* 16^5 */
-/* allowed: 可选的对手范围矩阵 Uint8Array(52*52)；不传=对手拿随机牌 */
-function simulate(hole, board, nOpp, iters, allowed) {
+/* allowed: 可选的对手范围矩阵 Uint8Array(52*52)；不传=对手拿随机牌
+   bluffP: 0-1，对手每次有这个概率在"演"（无视范围拿随机牌） */
+function simulate(hole, board, nOpp, iters, allowed, bluffP) {
   var used = {};
   hole.concat(board).forEach(function (c) { used[c] = 1; });
   var deck = [];
@@ -521,13 +528,14 @@ function simulate(hole, board, nOpp, iters, allowed) {
     for (j = 0; j < bneed; j++) full.push(deck[j]);
     var mine = evaluate7(full), maxOpp = -1, start = bneed;
     for (var o = 0; o < nOpp; o++) {
+      var filter = allowed && !(bluffP && Math.random() < bluffP) ? allowed : null;
       var c1, c2, ok = false;
       for (var tr = 0; tr < 30 && !ok; tr++) {
         var ii = start + Math.floor(Math.random() * (L - start));
         var jj = start + Math.floor(Math.random() * (L - start));
         if (jj === ii) continue;
         c1 = deck[ii]; c2 = deck[jj];
-        if (!allowed || allowed[c1 * 52 + c2]) {
+        if (!filter || filter[c1 * 52 + c2]) {
           tmp = deck[ii]; deck[ii] = deck[start]; deck[start] = tmp;
           if (jj === start) jj = ii;
           tmp = deck[jj]; deck[jj] = deck[start + 1]; deck[start + 1] = tmp;
@@ -755,20 +763,30 @@ function currentAllowed() {
   if (!allowedCache[pct]) allowedCache[pct] = buildAllowed(pct);
   return allowedCache[pct];
 }
-var ASSUME_TEXT = [
-  '胜率按「对手拿随机两张牌」估算。他敢下大注时记得把上面的对手风格切到「下重注」——那才是他真有牌时你的赢面。',
-  '已按「对手只玩最强前40%的牌」估算——适合他正常跟注进场的情况。人越多，需要的牌力越硬。',
-  '已按「对手只拿最强前15%的好牌」估算——他加注、下重注时看这个数，这就是他真有牌时你还剩的赢面。'
-];
+function bluffPct() { return +$('bluffSlider').value; }
+function updateAssume() {
+  var t;
+  if (oppStyle === 0) t = '胜率按「对手拿随机两张牌」估算。他敢下大注时记得把上面的对手风格切到「下重注」——那才是他真有牌时你的赢面。';
+  else if (oppStyle === 1) t = '已按「对手只玩最强前40%的牌」估算——适合他正常跟注进场的情况。人越多，需要的牌力越硬。';
+  else if (bluffPct() === 0) t = '已按「对手下重注且全是真牌」估算——这是最保守的数。他要是爱演，把滑杆往右拉。';
+  else t = '已按「对手下重注，但其中 ' + bluffPct() + '% 是在演」混合估算——他越爱唬人滑杆越往右。业余爱冲的人放 20%~30% 比较接近真实；拿不准就看他被抓过几次诈唬。';
+  $('assumeLine').textContent = t;
+}
 [['styleLoose', 0], ['styleNormal', 1], ['styleTight', 2]].forEach(function (pair) {
   $(pair[0]).addEventListener('click', function () {
     oppStyle = pair[1];
     $('styleLoose').setAttribute('aria-pressed', oppStyle === 0 ? 'true' : 'false');
     $('styleNormal').setAttribute('aria-pressed', oppStyle === 1 ? 'true' : 'false');
     $('styleTight').setAttribute('aria-pressed', oppStyle === 2 ? 'true' : 'false');
-    $('assumeLine').textContent = ASSUME_TEXT[oppStyle];
+    $('bluffRow').hidden = oppStyle !== 2;
+    updateAssume();
     scheduleCompute();
   });
+});
+$('bluffSlider').addEventListener('input', function () {
+  $('bluffVal').textContent = bluffPct() + '%';
+  updateAssume();
+  scheduleCompute();
 });
 
 /* ========== 算牌页：计算与建议 ========== */
@@ -824,11 +842,13 @@ function compute() {
   setTimeout(function () {
     var iters = forceIters || 12000;
     forceIters = null;
-    var res = simulate(hole, board, nOpp, iters, currentAllowed());
+    var bluffP = oppStyle === 2 ? bluffPct() / 100 : 0;
+    var res = simulate(hole, board, nOpp, iters, currentAllowed(), bluffP);
     var E = res.equity * 100;
     lastEquity = E;
 
-    $('stageLine').textContent = stageName(board.length) + ' · 对手 ' + nOpp + ' 人' + (oppStyle === 1 ? ' · 只玩前40%' : oppStyle === 2 ? ' · 只拿前15%好牌' : '');
+    $('stageLine').textContent = stageName(board.length) + ' · 对手 ' + nOpp + ' 人' +
+      (oppStyle === 1 ? ' · 只玩前40%' : oppStyle === 2 ? ' · 前15%好牌' + (bluffP > 0 ? '+' + Math.round(bluffP * 100) + '%在演' : '') : '');
     $('eqNum').textContent = E.toFixed(1);
     $('barFill').style.width = E.toFixed(1) + '%';
     $('subLine').textContent = '赢 ' + (res.win * 100).toFixed(1) + '% · 平 ' + (res.tie * 100).toFixed(1) + '% · 模拟 ' + iters + ' 局';
