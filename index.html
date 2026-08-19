@@ -28,6 +28,7 @@
     --sans: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; padding: 0; }
   body {
     background: radial-gradient(130% 90% at 50% -10%, var(--felt) 0%, var(--felt-deep) 78%) fixed, var(--felt-deep);
@@ -128,6 +129,15 @@
     border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; letter-spacing: 1px;
   }
   .controls input[type="range"] { flex: 1; min-width: 90px; accent-color: var(--brass); }
+  details.howto {
+    background: var(--panel); border: 1px solid var(--brass); border-radius: 12px;
+    padding: 10px 14px; margin-bottom: 14px; font-size: 13.5px;
+  }
+  details.howto summary { cursor: pointer; color: var(--brass); font-weight: 700; letter-spacing: 1px; }
+  details.howto ol { margin: 8px 0 2px; padding-left: 20px; }
+  details.howto li { margin: 7px 0; }
+  details.howto b { color: var(--brass); }
+  .bar .fairmark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: rgba(255,255,255,.55); display: none; }
 
   /* 结果 */
   .stage { font-size: 12px; color: var(--muted); letter-spacing: 2px; }
@@ -272,6 +282,14 @@
 
   <!-- ================= 算牌 ================= -->
   <div id="tab-calc">
+    <details class="howto">
+      <summary>第一次用？9人局三步上手</summary>
+      <ol>
+        <li><b>发完底牌</b>：点亮你那两张。「对手人数」填<b>还没弃牌的人数</b>——9人桌开局填8，之后谁弃牌就随手减1。</li>
+        <li><b>有人下重注</b>：切到「下重注」档——工具只把<b>下注那一个人</b>当成有好牌，其他人按正常算。再把底池和要跟的钱填上，AI 会按他下注的大小自动估他几成在演。</li>
+        <li><b>公共牌发一张点一张</b>：胜率和「军师建议」实时更新，照着做就行——胜率条上那道白线是及格线，过线就是领先。</li>
+      </ol>
+    </details>
     <section class="panel">
       <h2>选牌<span class="en">点亮槽位，再从下面牌堆里挑</span></h2>
       <div class="slots">
@@ -291,17 +309,23 @@
         <button class="clearbtn" id="clearAll">清空重来</button>
       </div>
       <div class="controls" style="margin-top:10px">
-        <span class="steplabel">对手拿牌按</span>
+        <span class="steplabel">桌上情况</span>
         <div class="streettoggle">
-          <button id="styleLoose" aria-pressed="true">乱打</button>
-          <button id="styleNormal" aria-pressed="false">正常·前40%</button>
-          <button id="styleTight" aria-pressed="false">下重注·前15%</button>
+          <button id="styleLoose" aria-pressed="true">没人加注</button>
+          <button id="styleNormal" aria-pressed="false">有人跟注</button>
+          <button id="styleTight" aria-pressed="false">有人下重注</button>
         </div>
       </div>
       <div class="controls" id="bluffRow" style="margin-top:10px" hidden>
-        <span class="steplabel">他有几成是在演？</span>
+        <span class="steplabel">他几成在演</span>
+        <div class="streettoggle">
+          <button id="bluffAuto" aria-pressed="true">AI自动估</button>
+          <button id="bluffManual" aria-pressed="false">手动</button>
+        </div>
+        <span class="num" id="bluffVal" style="font-family:var(--serif);font-size:18px;min-width:44px;text-align:right;font-variant-numeric:tabular-nums;color:var(--brass)">—</span>
+      </div>
+      <div class="controls" id="bluffSliderRow" style="margin-top:8px" hidden>
         <input type="range" id="bluffSlider" min="0" max="50" step="5" value="20" aria-label="对手诈唬概率">
-        <span class="num" id="bluffVal" style="font-family:var(--serif);font-size:17px;min-width:38px;text-align:right;font-variant-numeric:tabular-nums">20%</span>
       </div>
     </section>
 
@@ -311,12 +335,14 @@
       <div class="bignum"><span id="eqNum">—</span><span class="pct">%</span></div>
       <div class="bar">
         <div class="fill" id="barFill"></div>
+        <div class="fairmark" id="barFair"></div>
         <div class="needmark" id="barNeed"></div>
       </div>
       <div class="subline" id="subLine">选好两张底牌后自动计算</div>
+      <div class="subline" id="fairLine" style="margin-top:4px"></div>
       <div class="madehand" id="madeHand"></div>
       <button class="clearbtn" id="preciseBtn" style="margin-top:10px" hidden>精算一次 · 模拟 5 万局</button>
-      <div class="assume" id="assumeLine">胜率按「对手拿随机两张牌」估算。他敢下大注时记得把上面的对手风格切到「下重注」——那才是他真有牌时你的赢面。</div>
+      <div class="assume" id="assumeLine">对手按「随机拿牌」算。桌上一有人加注或下重注，就在上面「桌上情况」里点一下——AI 会自动换算他大概拿什么牌、几成在演。</div>
     </section>
 
     <section class="panel">
@@ -439,7 +465,7 @@
 
   <footer>
     <div class="suits">♠ <span class="r">♥</span> ♦ <span class="r">♣</span></div>
-    全部在你手机里本地计算 · 不联网 · 朋友局娱乐专用<br>线上真金平台禁止实时辅助工具，别拿去违规
+    全部在你手机里本地计算 · 不联网 · 数学是最好的牌技
   </footer>
 </div>
 
@@ -511,8 +537,10 @@ function evaluate7(cards) {
 var CAT_NAMES = ['高牌', '一对', '两对', '三条', '顺子', '同花', '葫芦', '四条', '同花顺'];
 function handCategory(v) { return Math.floor(v / 1048576); } /* 16^5 */
 /* allowed: 可选的对手范围矩阵 Uint8Array(52*52)；不传=对手拿随机牌
-   bluffP: 0-1，对手每次有这个概率在"演"（无视范围拿随机牌） */
-function simulate(hole, board, nOpp, iters, allowed, bluffP) {
+   bluffP: 0-1，对手每次有这个概率在"演"（无视范围拿随机牌）
+   restAllowed/tightN: 前 tightN 个对手用 allowed(+bluffP)，其余用 restAllowed；不传 tightN=全部用 allowed */
+function simulate(hole, board, nOpp, iters, allowed, bluffP, restAllowed, tightN) {
+  if (tightN === undefined) tightN = nOpp;
   var used = {};
   hole.concat(board).forEach(function (c) { used[c] = 1; });
   var deck = [];
@@ -528,7 +556,8 @@ function simulate(hole, board, nOpp, iters, allowed, bluffP) {
     for (j = 0; j < bneed; j++) full.push(deck[j]);
     var mine = evaluate7(full), maxOpp = -1, start = bneed;
     for (var o = 0; o < nOpp; o++) {
-      var filter = allowed && !(bluffP && Math.random() < bluffP) ? allowed : null;
+      var base2 = o < tightN ? allowed : restAllowed;
+      var filter = base2 && !(o < tightN && bluffP && Math.random() < bluffP) ? base2 : null;
       var c1, c2, ok = false;
       for (var tr = 0; tr < 30 && !ok; tr++) {
         var ii = start + Math.floor(Math.random() * (L - start));
@@ -755,21 +784,24 @@ $('preciseBtn').addEventListener('click', function () {
   forceIters = 50000;
   compute();
 });
-/* 对手风格：0=乱打(随机) 1=正常(前40%) 2=下重注(前15%) */
-var oppStyle = 0, allowedCache = {};
-function currentAllowed() {
-  if (oppStyle === 0) return null;
-  var pct = oppStyle === 1 ? 40 : 15;
+/* 桌上情况：0=没人加注(随机) 1=有人跟注(前40%) 2=有人下重注(1人前15%+其余前40%) */
+var oppStyle = 0, allowedCache = {}, bluffMode = 'auto';
+function getAllowed(pct) {
   if (!allowedCache[pct]) allowedCache[pct] = buildAllowed(pct);
   return allowedCache[pct];
 }
-function bluffPct() { return +$('bluffSlider').value; }
-function updateAssume() {
+/* AI按注码大小估诈唬率：博弈论均衡频率 call/(pot+2call)，业余爱冲上浮20%，夹在10%~40%；没填注码按25% */
+function autoBluffEst(pot, call, hasPot) {
+  if (!hasPot || !(call > 0)) return 25;
+  var gto = call / (pot + 2 * call) * 100;
+  return Math.round(Math.min(40, Math.max(10, gto * 1.2)));
+}
+function updateAssume(bluffPctShown) {
   var t;
-  if (oppStyle === 0) t = '胜率按「对手拿随机两张牌」估算。他敢下大注时记得把上面的对手风格切到「下重注」——那才是他真有牌时你的赢面。';
-  else if (oppStyle === 1) t = '已按「对手只玩最强前40%的牌」估算——适合他正常跟注进场的情况。人越多，需要的牌力越硬。';
-  else if (bluffPct() === 0) t = '已按「对手下重注且全是真牌」估算——这是最保守的数。他要是爱演，把滑杆往右拉。';
-  else t = '已按「对手下重注，但其中 ' + bluffPct() + '% 是在演」混合估算——他越爱唬人滑杆越往右。业余爱冲的人放 20%~30% 比较接近真实；拿不准就看他被抓过几次诈唬。';
+  if (oppStyle === 0) t = '对手按「随机拿牌」算。开局没人加注、大家混着看牌时用这档。';
+  else if (oppStyle === 1) t = '已按「场上对手都是正常进场（只玩较好的前40%起手牌）」估算。';
+  else if (bluffMode === 'auto') t = '已按「下重注那人拿前15%的好牌、但有 ' + bluffPctShown + '% 概率在演（AI按他下注大小估的）＋其余对手正常拿牌」估算。填了底池和跟注金额，估得更准。';
+  else t = '已按「下重注那人 ' + bluffPctShown + '% 在演（你手动设的）＋其余对手正常拿牌」估算。';
   $('assumeLine').textContent = t;
 }
 [['styleLoose', 0], ['styleNormal', 1], ['styleTight', 2]].forEach(function (pair) {
@@ -779,15 +811,25 @@ function updateAssume() {
     $('styleNormal').setAttribute('aria-pressed', oppStyle === 1 ? 'true' : 'false');
     $('styleTight').setAttribute('aria-pressed', oppStyle === 2 ? 'true' : 'false');
     $('bluffRow').hidden = oppStyle !== 2;
-    updateAssume();
+    $('bluffSliderRow').hidden = oppStyle !== 2 || bluffMode !== 'manual';
     scheduleCompute();
   });
 });
-$('bluffSlider').addEventListener('input', function () {
-  $('bluffVal').textContent = bluffPct() + '%';
-  updateAssume();
+$('bluffAuto').addEventListener('click', function () {
+  bluffMode = 'auto';
+  $('bluffAuto').setAttribute('aria-pressed', 'true');
+  $('bluffManual').setAttribute('aria-pressed', 'false');
+  $('bluffSliderRow').hidden = true;
   scheduleCompute();
 });
+$('bluffManual').addEventListener('click', function () {
+  bluffMode = 'manual';
+  $('bluffAuto').setAttribute('aria-pressed', 'false');
+  $('bluffManual').setAttribute('aria-pressed', 'true');
+  $('bluffSliderRow').hidden = false;
+  scheduleCompute();
+});
+$('bluffSlider').addEventListener('input', scheduleCompute);
 
 /* ========== 算牌页：计算与建议 ========== */
 var computeTimer = null, lastEquity = null;
@@ -830,6 +872,8 @@ function compute() {
     $('eqNum').textContent = '—';
     $('barFill').style.width = '0%';
     $('barNeed').style.display = 'none';
+    $('barFair').style.display = 'none';
+    $('fairLine').textContent = '';
     $('subLine').textContent = '选好两张底牌后自动计算';
     $('madeHand').textContent = '';
     $('preciseBtn').hidden = true;
@@ -842,13 +886,20 @@ function compute() {
   setTimeout(function () {
     var iters = forceIters || 12000;
     forceIters = null;
-    var bluffP = oppStyle === 2 ? bluffPct() / 100 : 0;
-    var res = simulate(hole, board, nOpp, iters, currentAllowed(), bluffP);
+    var bluffP = 0, allowedMain = null, restAllowed = null, tightN = nOpp;
+    if (oppStyle === 1) { allowedMain = getAllowed(40); }
+    else if (oppStyle === 2) {
+      allowedMain = getAllowed(15); restAllowed = getAllowed(40); tightN = 1;
+      bluffP = (bluffMode === 'auto' ? autoBluffEst(pot, call, hasPot) : +$('bluffSlider').value) / 100;
+    }
+    $('bluffVal').textContent = oppStyle === 2 ? Math.round(bluffP * 100) + '%' : '—';
+    updateAssume(Math.round(bluffP * 100));
+    var res = simulate(hole, board, nOpp, iters, allowedMain, bluffP, restAllowed, tightN);
     var E = res.equity * 100;
     lastEquity = E;
 
     $('stageLine').textContent = stageName(board.length) + ' · 对手 ' + nOpp + ' 人' +
-      (oppStyle === 1 ? ' · 只玩前40%' : oppStyle === 2 ? ' · 前15%好牌' + (bluffP > 0 ? '+' + Math.round(bluffP * 100) + '%在演' : '') : '');
+      (oppStyle === 1 ? ' · 正常进场' : oppStyle === 2 ? ' · 其中1人下重注' : '');
     $('eqNum').textContent = E.toFixed(1);
     $('barFill').style.width = E.toFixed(1) + '%';
     $('subLine').textContent = '赢 ' + (res.win * 100).toFixed(1) + '% · 平 ' + (res.tie * 100).toFixed(1) + '% · 模拟 ' + iters + ' 局';
@@ -859,6 +910,11 @@ function compute() {
     } else {
       $('barNeed').style.display = 'none';
     }
+    var fair = 100 / (nOpp + 1);
+    $('barFair').style.display = 'block';
+    $('barFair').style.left = fair.toFixed(1) + '%';
+    $('fairLine').innerHTML = '及格线（' + (nOpp + 1) + '人桌人均）' + fair.toFixed(1) + '% · 你目前' +
+      (E >= fair ? '<b style="color:var(--good)">领先</b>' : '<b style="color:var(--red)">落后</b>');
     if (board.length >= 3) {
       var cat = handCategory(evaluate7(hole.concat(board)));
       $('madeHand').innerHTML = '你当前的成牌：<b>' + CAT_NAMES[cat] + '</b>';
