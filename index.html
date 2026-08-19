@@ -151,6 +151,15 @@
   details.howto li { margin: 7px 0; }
   details.howto b { color: var(--brass); }
   .bar .fairmark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: rgba(255,255,255,.55); display: none; }
+  .betrow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 7px; }
+  .betrow button {
+    appearance: none; border: 1px solid var(--line); background: var(--panel2); color: var(--muted);
+    border-radius: 8px; padding: 10px 2px; font-size: 13px; cursor: pointer;
+    font-family: var(--sans); line-height: 1.25;
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+  }
+  .betrow button small { font-size: 10px; opacity: .8; }
+  .betrow button[aria-pressed="true"] { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); font-weight: 700; }
   select.sel {
     background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 10px; font-size: 14.5px; font-family: var(--sans); cursor: pointer;
@@ -324,7 +333,7 @@
       <summary>第一次用？9人局三步上手</summary>
       <ol>
         <li><b>发完底牌</b>：点亮你那两张。「几人局」选<b>桌上还没弃牌的人数（含你）</b>——9人桌开局选9，之后谁弃牌就改小一档。</li>
-        <li><b>有人下重注</b>：切到「下重注」档——工具只把<b>下注那一个人</b>当成有好牌，其他人按正常算。再把底池和要跟的钱填上，AI 会按他下注的大小自动估他几成在演。</li>
+        <li><b>有人下注了</b>：瞄一眼锅和他的注，在「对手下了多少」戳一下（半锅/满锅/超锅）——赔率、他大概拿什么牌、几成在演，AI 全自动算好，你不用填任何数字。</li>
         <li><b>公共牌发一张点一张</b>：胜率和「军师建议」实时更新，照着做就行——胜率条上那道白线是及格线，过线就是领先。</li>
         <li><b>没上过真桌？</b>先去「陪练」页开一局，跟 AI 打几手练熟流程，零成本。</li>
       </ol>
@@ -355,12 +364,14 @@
         </div>
         <button class="clearbtn" id="clearAll" style="color:var(--brass);border-color:var(--brass);font-weight:700">下一手 · 清空</button>
       </div>
-      <div class="controls" style="margin-top:10px">
-        <span class="steplabel">桌上情况</span>
-        <div class="streettoggle">
-          <button id="styleLoose" aria-pressed="true">没人加注</button>
-          <button id="styleNormal" aria-pressed="false">有人跟注</button>
-          <button id="styleTight" aria-pressed="false">有人下重注</button>
+      <div style="margin-top:12px">
+        <span class="steplabel">对手下了多少？<span style="color:var(--muted)">（看一眼锅和他的注，戳一下就行）</span></span>
+        <div class="betrow" id="betRow">
+          <button data-bet="0" aria-pressed="true">没人下注</button>
+          <button data-bet="1" aria-pressed="false">小注<small>¼锅</small></button>
+          <button data-bet="2" aria-pressed="false">半锅</button>
+          <button data-bet="3" aria-pressed="false">下满锅</button>
+          <button data-bet="4" aria-pressed="false">超锅/全下</button>
         </div>
       </div>
       <div class="controls" id="bluffRow" style="margin-top:10px" hidden>
@@ -397,22 +408,25 @@
       <div class="subline" id="fairLine" style="margin-top:4px"></div>
       <div class="madehand" id="madeHand"></div>
       <button class="clearbtn" id="preciseBtn" style="margin-top:10px" hidden>精算一次 · 模拟 5 万局</button>
-      <div class="assume" id="assumeLine">对手按「随机拿牌」算。桌上一有人加注或下重注，就在上面「桌上情况」里点一下——AI 会自动换算他大概拿什么牌、几成在演。</div>
+      <div class="assume" id="assumeLine">对手按「随机拿牌」算。他一下注，就在上面戳一下「对手下了多少」——AI 自动换算他大概拿什么牌、几成在演，赔率也一并算好。</div>
     </section>
 
     <section class="panel">
       <h2>底池赔率<span class="en">这口注跟不跟</span></h2>
-      <div class="potrow">
-        <div>
-          <label for="potInput">当前底池总额（含对方刚下的注）</label>
-          <input id="potInput" type="number" inputmode="decimal" min="0" placeholder="例：100">
+      <div class="needline" id="needLine">上面戳一下「对手下了多少」，这里就出结果。</div>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;color:var(--muted);font-size:13px">时间够的话，填精确数字更准 ▾</summary>
+        <div class="potrow" style="margin-top:10px">
+          <div>
+            <label for="potInput">当前底池总额（含对方刚下的注）</label>
+            <input id="potInput" type="number" inputmode="decimal" min="0" placeholder="例：212">
+          </div>
+          <div>
+            <label for="callInput">你需要跟注</label>
+            <input id="callInput" type="number" inputmode="decimal" min="0" placeholder="例：100">
+          </div>
         </div>
-        <div>
-          <label for="callInput">你需要跟注</label>
-          <input id="callInput" type="number" inputmode="decimal" min="0" placeholder="例：50">
-        </div>
-      </div>
-      <div class="needline" id="needLine">填上数字，我告诉你这口注需要多少胜率才值得跟。</div>
+      </details>
     </section>
 
   </div>
@@ -920,16 +934,26 @@ function updateAssume(bluffPctShown) {
   else t = '已按「下重注那人 ' + bluffPctShown + '% 在演（你手动设的）＋其余对手正常拿牌」估算。';
   $('assumeLine').textContent = t;
 }
-[['styleLoose', 0], ['styleNormal', 1], ['styleTight', 2]].forEach(function (pair) {
-  $(pair[0]).addEventListener('click', function () {
-    oppStyle = pair[1];
-    $('styleLoose').setAttribute('aria-pressed', oppStyle === 0 ? 'true' : 'false');
-    $('styleNormal').setAttribute('aria-pressed', oppStyle === 1 ? 'true' : 'false');
-    $('styleTight').setAttribute('aria-pressed', oppStyle === 2 ? 'true' : 'false');
-    $('bluffRow').hidden = oppStyle !== 2;
-    $('bluffSliderRow').hidden = oppStyle !== 2 || bluffMode !== 'manual';
-    scheduleCompute();
+/* 下注档位：0没人下注 1小注¼锅 2半锅 3满锅 4超锅/全下 */
+var betLevel = 0;
+var BET_RATIO = [0, 0.25, 0.5, 1, 2];               /* 他的注 ÷ 锅 */
+var BET_STYLE = [0, 1, 1, 2, 2];                    /* 对应的对手范围档 */
+function betNeeded() {                              /* 这口注需要的最低胜率% */
+  var r = BET_RATIO[betLevel];
+  return r > 0 ? r / (1 + 2 * r) * 100 : null;
+}
+function setBetLevel(lv) {
+  betLevel = lv;
+  oppStyle = BET_STYLE[lv];
+  document.querySelectorAll('#betRow button').forEach(function (b) {
+    b.setAttribute('aria-pressed', +b.dataset.bet === lv ? 'true' : 'false');
   });
+  $('bluffRow').hidden = oppStyle !== 2;
+  $('bluffSliderRow').hidden = oppStyle !== 2 || bluffMode !== 'manual';
+  scheduleCompute();
+}
+document.querySelectorAll('#betRow button').forEach(function (b) {
+  b.addEventListener('click', function () { setBetLevel(+b.dataset.bet); });
 });
 $('bluffAuto').addEventListener('click', function () {
   bluffMode = 'auto';
@@ -952,7 +976,7 @@ var computeTimer = null, lastEquity = null;
 function saveCalc() {
   try {
     localStorage.setItem('pzjs_calc', JSON.stringify({
-      slots: slots, ts: nOpp + 1, style: oppStyle, bm: bluffMode,
+      slots: slots, ts: nOpp + 1, bl: betLevel, bm: bluffMode,
       bs: +$('bluffSlider').value, pot: $('potInput').value, call: $('callInput').value
     }));
   } catch (e) {}
@@ -980,13 +1004,24 @@ function compute() {
   for (var i = 2; i < 7; i++) if (slots[i] >= 0) board.push(slots[i]);
 
   var pot = parseFloat($('potInput').value), call = parseFloat($('callInput').value);
-  var hasPot = !isNaN(pot) && !isNaN(call) && pot >= 0 && call >= 0 && (pot + call) > 0;
-  var needed = hasPot ? (call / (pot + call)) * 100 : null;
+  var exact = !isNaN(pot) && !isNaN(call) && pot >= 0 && call >= 0 && (pot + call) > 0;
+  var needed, hasPot;
+  if (exact) {                       /* 填了精确数字优先 */
+    needed = (call / (pot + call)) * 100; hasPot = true;
+  } else {                           /* 否则用档位按钮 */
+    needed = betNeeded(); hasPot = needed !== null;
+    /* 等效数字：锅=100，他下 100×倍数，供AI估诈唬率用 */
+    call = 100 * BET_RATIO[betLevel];
+    pot = 100 + call;
+  }
 
-  if (hasPot) {
+  if (exact) {
     $('needLine').innerHTML = call === 0
       ? '现在没人下注，不存在跟注问题——领先就下注，落后就过牌。'
       : '跟这口注需要至少 <b>' + needed.toFixed(1) + '%</b> 胜率才划算（' + call + ' ÷ ' + (pot + call) + '）。';
+  } else if (hasPot) {
+    var LB = ['', '小注（¼锅）', '半锅', '满锅', '超锅/全下'];
+    $('needLine').innerHTML = '他下了<b>' + LB[betLevel] + '</b> → 跟这口注需要至少 <b>' + needed.toFixed(0) + '%</b> 胜率才划算。';
   } else {
     $('needLine').textContent = '填上数字，我告诉你这口注需要多少胜率才值得跟。';
   }
@@ -1482,18 +1517,13 @@ function prRender(actor, showdown) {
     if (!d) return;
     if (d.slots && d.slots.length === 7) slots = d.slots;
     if (d.ts >= 2 && d.ts <= 10) { $('tableSize').value = d.ts; nOpp = d.ts - 1; }
-    oppStyle = d.style || 0;
     bluffMode = d.bm === 'manual' ? 'manual' : 'auto';
     if (d.bs >= 0 && d.bs <= 50) $('bluffSlider').value = d.bs;
     if (d.pot) $('potInput').value = d.pot;
     if (d.call) $('callInput').value = d.call;
-    $('styleLoose').setAttribute('aria-pressed', oppStyle === 0 ? 'true' : 'false');
-    $('styleNormal').setAttribute('aria-pressed', oppStyle === 1 ? 'true' : 'false');
-    $('styleTight').setAttribute('aria-pressed', oppStyle === 2 ? 'true' : 'false');
     $('bluffAuto').setAttribute('aria-pressed', bluffMode === 'auto' ? 'true' : 'false');
     $('bluffManual').setAttribute('aria-pressed', bluffMode === 'manual' ? 'true' : 'false');
-    $('bluffRow').hidden = oppStyle !== 2;
-    $('bluffSliderRow').hidden = oppStyle !== 2 || bluffMode !== 'manual';
+    setBetLevel(d.bl >= 0 && d.bl <= 4 ? d.bl : 0);
   } catch (e) {}
 })();
 /* 刷新恢复：陪练存档提示 */
