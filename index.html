@@ -413,6 +413,7 @@
           <select id="prSize" class="sel" aria-label="陪练几人局"></select>
         </div>
         <button class="clearbtn" id="prStart">开一局</button>
+        <button class="clearbtn" id="prResume" hidden style="color:var(--brass);border-color:var(--brass)">继续上一场</button>
       </div>
       <p class="pickhint">盲注 5/10，每人 1000 起，输光自动补。对手里有紧有松有爱冲的，跟真实牌桌一样。轮到你时军师会在旁边支招。</p>
       <p class="pickhint" id="prScore" style="color:var(--brass)"></p>
@@ -911,9 +912,17 @@ $('bluffSlider').addEventListener('input', scheduleCompute);
 
 /* ========== 算牌页：计算与建议 ========== */
 var computeTimer = null, lastEquity = null;
+function saveCalc() {
+  try {
+    localStorage.setItem('pzjs_calc', JSON.stringify({
+      slots: slots, ts: nOpp + 1, style: oppStyle, bm: bluffMode,
+      bs: +$('bluffSlider').value, pot: $('potInput').value, call: $('callInput').value
+    }));
+  } catch (e) {}
+}
 function scheduleCompute() {
   clearTimeout(computeTimer);
-  computeTimer = setTimeout(compute, 180);
+  computeTimer = setTimeout(function () { saveCalc(); compute(); }, 180);
 }
 function stageName(bn) {
   return bn === 0 ? '翻牌前' : bn < 3 ? '翻牌未齐' : bn === 3 ? '翻牌圈' : bn === 4 ? '转牌圈' : '河牌圈';
@@ -1147,6 +1156,14 @@ function prPost(p, amt) {
   return amt;
 }
 
+function savePr() {
+  try {
+    localStorage.setItem('pzjs_pr', JSON.stringify({
+      n: pr.n, hand: pr.hand, dealer: pr.dealer,
+      players: pr.players.map(function (p) { return { name: p.name, human: !!p.human, stack: p.stack, buyin: p.buyin, style: p.style }; })
+    }));
+  } catch (e) {}
+}
 $('prStart').addEventListener('click', function () {
   var n = +$('prSize').value;
   pr = { n: n, hand: 0, dealer: -1, players: [], logs: [] };
@@ -1156,7 +1173,20 @@ $('prStart').addEventListener('click', function () {
   }
   $('prTable').hidden = false;
   $('prButtons').innerHTML = ''; $('prAdvice').hidden = true; $('prLog').innerHTML = '';
+  savePr();
   prNextHand();
+});
+$('prResume').addEventListener('click', function () {
+  try {
+    var sv = JSON.parse(localStorage.getItem('pzjs_pr') || 'null');
+    if (!sv || !sv.players) return;
+    pr = { n: sv.n, hand: sv.hand, dealer: sv.dealer, logs: [],
+      players: sv.players.map(function (p) { return { name: p.name, human: p.human, stack: p.stack, buyin: p.buyin, style: p.style }; }) };
+    $('prSize').value = sv.n;
+    $('prTable').hidden = false;
+    $('prButtons').innerHTML = ''; $('prAdvice').hidden = true; $('prLog').innerHTML = '';
+    prNextHand();
+  } catch (e) {}
 });
 
 function prNextHand() {
@@ -1370,6 +1400,7 @@ function prShowdown() {
   }
   pr.players.forEach(function (p) { p.contrib = 0; p.bet = 0; }); /* 底池已分完，清零显示 */
   pr.inHand = false;
+  savePr(); /* 每手结束自动存档，刷新页面也不丢 */
   prRender(null, true);
   var el = $('prButtons'); el.innerHTML = '';
   var btn = document.createElement('button');
@@ -1407,10 +1438,42 @@ function prRender(actor, showdown) {
 }
 
 /* ========== 启动 ========== */
+/* 刷新恢复：算牌页的选牌和设置 */
+(function restoreCalc() {
+  try {
+    var d = JSON.parse(localStorage.getItem('pzjs_calc') || 'null');
+    if (!d) return;
+    if (d.slots && d.slots.length === 7) slots = d.slots;
+    if (d.ts >= 2 && d.ts <= 10) { $('tableSize').value = d.ts; nOpp = d.ts - 1; }
+    oppStyle = d.style || 0;
+    bluffMode = d.bm === 'manual' ? 'manual' : 'auto';
+    if (d.bs >= 0 && d.bs <= 50) $('bluffSlider').value = d.bs;
+    if (d.pot) $('potInput').value = d.pot;
+    if (d.call) $('callInput').value = d.call;
+    $('styleLoose').setAttribute('aria-pressed', oppStyle === 0 ? 'true' : 'false');
+    $('styleNormal').setAttribute('aria-pressed', oppStyle === 1 ? 'true' : 'false');
+    $('styleTight').setAttribute('aria-pressed', oppStyle === 2 ? 'true' : 'false');
+    $('bluffAuto').setAttribute('aria-pressed', bluffMode === 'auto' ? 'true' : 'false');
+    $('bluffManual').setAttribute('aria-pressed', bluffMode === 'manual' ? 'true' : 'false');
+    $('bluffRow').hidden = oppStyle !== 2;
+    $('bluffSliderRow').hidden = oppStyle !== 2 || bluffMode !== 'manual';
+  } catch (e) {}
+})();
+/* 刷新恢复：陪练存档提示 */
+(function checkPrSave() {
+  try {
+    var sv = JSON.parse(localStorage.getItem('pzjs_pr') || 'null');
+    if (!sv || !sv.players || !sv.players[0]) return;
+    var me = sv.players[0], net = me.stack - me.buyin;
+    $('prResume').hidden = false;
+    $('prResume').textContent = '继续上一场（打到第 ' + (sv.hand + 1) + ' 手 · 盈亏 ' + (net >= 0 ? '+' : '') + net + '）';
+  } catch (e) {}
+})();
 buildSlots(); buildPicker(); buildGrid();
 fillList('ironList', IRON); fillList('factList', FACTS); fillList('oppTypeList', OPP_TYPES);
 fillList('leakList', LEAKS); fillList('ruleTraps', TRAPS);
 renderOuts(); buildRanks();
+scheduleCompute(); /* 恢复的选牌立即重算 */
 </script>
 
 </body>
