@@ -289,6 +289,14 @@
         </div>
         <button class="clearbtn" id="clearAll">清空重来</button>
       </div>
+      <div class="controls" style="margin-top:10px">
+        <span class="steplabel">对手拿牌按</span>
+        <div class="streettoggle">
+          <button id="styleLoose" aria-pressed="true">乱打</button>
+          <button id="styleNormal" aria-pressed="false">正常·前40%</button>
+          <button id="styleTight" aria-pressed="false">下重注·前15%</button>
+        </div>
+      </div>
     </section>
 
     <section class="panel">
@@ -302,7 +310,7 @@
       <div class="subline" id="subLine">选好两张底牌后自动计算</div>
       <div class="madehand" id="madeHand"></div>
       <button class="clearbtn" id="preciseBtn" style="margin-top:10px" hidden>精算一次 · 模拟 5 万局</button>
-      <div class="assume">胜率按「对手拿随机两张牌」估算。对手敢下大注时，他的牌通常比随机好——心里打个八折再做决定。人越多，需要的牌力越硬。</div>
+      <div class="assume" id="assumeLine">胜率按「对手拿随机两张牌」估算。他敢下大注时记得把上面的对手风格切到「下重注」——那才是他真有牌时你的赢面。</div>
     </section>
 
     <section class="panel">
@@ -496,31 +504,71 @@ function evaluate7(cards) {
 }
 var CAT_NAMES = ['高牌', '一对', '两对', '三条', '顺子', '同花', '葫芦', '四条', '同花顺'];
 function handCategory(v) { return Math.floor(v / 1048576); } /* 16^5 */
-function simulate(hole, board, nOpp, iters) {
+/* allowed: 可选的对手范围矩阵 Uint8Array(52*52)；不传=对手拿随机牌 */
+function simulate(hole, board, nOpp, iters, allowed) {
   var used = {};
   hole.concat(board).forEach(function (c) { used[c] = 1; });
   var deck = [];
   for (var c = 0; c < 52; c++) if (!used[c]) deck.push(c);
-  var need = (5 - board.length) + nOpp * 2, win = 0, tie = 0;
+  var L = deck.length, bneed = 5 - board.length, win = 0, tie = 0;
   var base = hole.concat(board);
   for (var i = 0; i < iters; i++) {
-    for (var j = 0; j < need; j++) {
-      var k = j + Math.floor(Math.random() * (deck.length - j));
+    for (var j = 0; j < bneed; j++) {
+      var k = j + Math.floor(Math.random() * (L - j));
       var tmp = deck[j]; deck[j] = deck[k]; deck[k] = tmp;
     }
-    var idx = 0, full = base.slice();
-    for (j = board.length; j < 5; j++) full.push(deck[idx++]);
-    var mine = evaluate7(full), maxOpp = -1;
+    var full = base.slice();
+    for (j = 0; j < bneed; j++) full.push(deck[j]);
+    var mine = evaluate7(full), maxOpp = -1, start = bneed;
     for (var o = 0; o < nOpp; o++) {
-      var oc = [deck[idx], deck[idx + 1]]; idx += 2;
+      var c1, c2, ok = false;
+      for (var tr = 0; tr < 30 && !ok; tr++) {
+        var ii = start + Math.floor(Math.random() * (L - start));
+        var jj = start + Math.floor(Math.random() * (L - start));
+        if (jj === ii) continue;
+        c1 = deck[ii]; c2 = deck[jj];
+        if (!allowed || allowed[c1 * 52 + c2]) {
+          tmp = deck[ii]; deck[ii] = deck[start]; deck[start] = tmp;
+          if (jj === start) jj = ii;
+          tmp = deck[jj]; deck[jj] = deck[start + 1]; deck[start + 1] = tmp;
+          ok = true;
+        }
+      }
+      if (!ok) { c1 = deck[start]; c2 = deck[start + 1]; }
+      var oc = [c1, c2];
       for (j = 2; j < 7; j++) oc.push(full[j]);
       var v = evaluate7(oc);
       if (v > maxOpp) maxOpp = v;
+      start += 2;
     }
     if (mine > maxOpp) win++;
     else if (mine === maxOpp) tie++;
   }
   return { win: win / iters, tie: tie / iters, equity: (win + tie / 2) / iters };
+}
+/* 169种起手牌按强度降序（30万局/手 全下胜率排序） */
+var RANKED169 = ["AA","KK","QQ","JJ","TT","99","88","AKs","AQs","77","AJs","AQo","AKo","ATs","AJo","A9s","66","KQs","ATo","KJs","A8s","KQo","KTs","A9o","A7s","55","A6s","QJs","A8o","KJo","A5s","K9s","QTs","KTo","A4s","A7o","A3s","QJo","K8s","K9o","A2s","Q9s","A6o","A5o","QTo","JTs","A4o","K7s","44","K6s","Q8s","A3o","K5s","K8o","J9s","JTo","Q9o","K7o","K4s","A2o","Q7s","K3s","J8s","T9s","K6o","33","Q8o","K2s","K5o","Q6s","J9o","K4o","J7s","Q5s","Q7o","T8s","J8o","Q4s","K3o","T9o","98s","Q3s","K2o","T7s","Q5o","Q6o","J6s","Q2s","22","J5s","T8o","97s","J4s","J7o","Q4o","T6s","J3s","Q3o","98o","T7o","87s","J6o","Q2o","96s","J5o","J2s","T5s","T4s","86s","97o","J4o","T6o","T3s","95s","J3o","76s","T2s","87o","96o","85s","T5o","94s","J2o","86o","75s","93s","T4o","95o","65s","84s","76o","T3o","92s","74s","T2o","64s","54s","85o","83s","94o","75o","82s","65o","93o","73s","53s","84o","92o","63s","43s","74o","54o","72s","62s","64o","52s","83o","82o","73o","42s","53o","32s","63o","43o","72o","62o","52o","42o","32o"];
+/* 把「最强前 pct% 起手牌」编成允许矩阵 */
+function buildAllowed(pct) {
+  var codeSet = {}, cum = 0;
+  for (var x = 0; x < RANKED169.length; x++) {
+    var code = RANKED169[x];
+    var w = code.length === 2 ? 6 : code[2] === 's' ? 4 : 12;
+    if (cum > 0 && (cum + w) / 1326 * 100 > pct) break;
+    cum += w; codeSet[code] = 1;
+  }
+  var allowed = new Uint8Array(52 * 52);
+  for (var a = 0; a < 52; a++) for (var b = 0; b < 52; b++) {
+    if (a === b) continue;
+    var r1 = a >> 2, r2 = b >> 2, cd;
+    if (r1 === r2) cd = RANK_CODE[r1] + RANK_CODE[r2];
+    else {
+      var hi = Math.max(r1, r2), lo = Math.min(r1, r2);
+      cd = RANK_CODE[hi] + RANK_CODE[lo] + ((a & 3) === (b & 3) ? 's' : 'o');
+    }
+    if (codeSet[cd]) allowed[a * 52 + b] = 1;
+  }
+  return allowed;
 }
 
 /* ========== 数据：起手牌分档 / 秘籍 / 规则 ========== */
@@ -696,8 +744,31 @@ $('potInput').addEventListener('input', scheduleCompute);
 $('callInput').addEventListener('input', scheduleCompute);
 var forceIters = null;
 $('preciseBtn').addEventListener('click', function () {
-  forceIters = nOpp <= 4 ? 50000 : 30000;
+  forceIters = 50000;
   compute();
+});
+/* 对手风格：0=乱打(随机) 1=正常(前40%) 2=下重注(前15%) */
+var oppStyle = 0, allowedCache = {};
+function currentAllowed() {
+  if (oppStyle === 0) return null;
+  var pct = oppStyle === 1 ? 40 : 15;
+  if (!allowedCache[pct]) allowedCache[pct] = buildAllowed(pct);
+  return allowedCache[pct];
+}
+var ASSUME_TEXT = [
+  '胜率按「对手拿随机两张牌」估算。他敢下大注时记得把上面的对手风格切到「下重注」——那才是他真有牌时你的赢面。',
+  '已按「对手只玩最强前40%的牌」估算——适合他正常跟注进场的情况。人越多，需要的牌力越硬。',
+  '已按「对手只拿最强前15%的好牌」估算——他加注、下重注时看这个数，这就是他真有牌时你还剩的赢面。'
+];
+[['styleLoose', 0], ['styleNormal', 1], ['styleTight', 2]].forEach(function (pair) {
+  $(pair[0]).addEventListener('click', function () {
+    oppStyle = pair[1];
+    $('styleLoose').setAttribute('aria-pressed', oppStyle === 0 ? 'true' : 'false');
+    $('styleNormal').setAttribute('aria-pressed', oppStyle === 1 ? 'true' : 'false');
+    $('styleTight').setAttribute('aria-pressed', oppStyle === 2 ? 'true' : 'false');
+    $('assumeLine').textContent = ASSUME_TEXT[oppStyle];
+    scheduleCompute();
+  });
 });
 
 /* ========== 算牌页：计算与建议 ========== */
@@ -751,13 +822,13 @@ function compute() {
 
   $('subLine').textContent = '计算中…';
   setTimeout(function () {
-    var iters = forceIters || (nOpp <= 2 ? 12000 : nOpp <= 4 ? 9000 : 6000);
+    var iters = forceIters || 12000;
     forceIters = null;
-    var res = simulate(hole, board, nOpp, iters);
+    var res = simulate(hole, board, nOpp, iters, currentAllowed());
     var E = res.equity * 100;
     lastEquity = E;
 
-    $('stageLine').textContent = stageName(board.length) + ' · 对手 ' + nOpp + ' 人';
+    $('stageLine').textContent = stageName(board.length) + ' · 对手 ' + nOpp + ' 人' + (oppStyle === 1 ? ' · 只玩前40%' : oppStyle === 2 ? ' · 只拿前15%好牌' : '');
     $('eqNum').textContent = E.toFixed(1);
     $('barFill').style.width = E.toFixed(1) + '%';
     $('subLine').textContent = '赢 ' + (res.win * 100).toFixed(1) + '% · 平 ' + (res.tie * 100).toFixed(1) + '% · 模拟 ' + iters + ' 局';
@@ -785,6 +856,10 @@ function advise(hole, board, E, needed, call) {
     var T = TIERS[tier];
     setVerdict(T.verdict[0], T.verdict[1]);
     out.push('<p class="advtext">你的起手牌 <b style="color:var(--brass)">' + code + '</b>（第' + tier + '档 · ' + T.label + '）。' + T.advice + '</p>');
+    if (nOpp >= 5) {
+      if (tier <= 2) out.push('<p class="advtext">满桌提醒：人多时大牌要<b style="color:var(--brass)">加大注</b>，别让一堆烂牌便宜看翻牌——AA被5个人跟着看翻牌，就从85%的碾压变成三成多的混战。</p>');
+      else if (tier <= 4) out.push('<p class="advtext">满桌提醒：人多时别碰高牌杂牌，但小对子和同花连牌反而更值钱——一旦中了暗三条、同花，跟你抢底池的人多，赔的钱也多。</p>');
+    }
     if (needed !== null && call > 0) {
       out.push('<p class="advtext">' + potLine(E, needed) + '</p>');
     }
