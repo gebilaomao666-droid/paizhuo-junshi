@@ -51,7 +51,7 @@
 
   /* 页签 */
   nav.tabs {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px;
     background: var(--panel); border: 1px solid var(--line);
     border-radius: 12px; padding: 5px; margin: 14px 0 18px;
     position: sticky; top: 8px; z-index: 20;
@@ -59,7 +59,7 @@
   }
   nav.tabs button {
     appearance: none; border: 0; background: transparent; color: var(--muted);
-    font-family: var(--sans); font-size: 14px; letter-spacing: 2px;
+    font-family: var(--sans); font-size: 13.5px; letter-spacing: 1px;
     padding: 9px 0; border-radius: 8px; cursor: pointer;
     transition: background .15s, color .15s;
   }
@@ -138,6 +138,30 @@
   details.howto li { margin: 7px 0; }
   details.howto b { color: var(--brass); }
   .bar .fairmark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: rgba(255,255,255,.55); display: none; }
+  select.sel {
+    background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font-size: 14.5px; font-family: var(--sans); cursor: pointer;
+  }
+  /* 陪练 */
+  .seatrow { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+  .seatrow.folded { opacity: .35; }
+  .seatrow.turn { background: rgba(217,164,65,.10); border-radius: 6px; }
+  .seatrow .sname { min-width: 72px; font-weight: 700; }
+  .seatrow .sstack { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 74px; }
+  .seatrow .sbet { color: var(--brass); font-variant-numeric: tabular-nums; min-width: 64px; }
+  .seatrow .scards { display: flex; gap: 3px; align-items: center; margin-left: auto; }
+  .pcback { background: #25503C; border: 1px solid #35664E; border-radius: 3px; width: 18px; height: 24px; display: inline-block; }
+  .prboard { display: flex; align-items: center; gap: 5px; padding: 12px 0; border-bottom: 1px dashed var(--line); flex-wrap: wrap; }
+  .prboard .pc { font-size: 16px; padding: 6px 5px; }
+  .prboard .pot { margin-left: auto; font-family: var(--serif); color: var(--brass); font-size: 18px; font-variant-numeric: tabular-nums; }
+  .prmine { display: flex; align-items: center; gap: 8px; padding: 10px 0; font-size: 14px; flex-wrap: wrap; }
+  .prmine .pc { font-size: 16px; padding: 6px 5px; }
+  .practions { font-size: 13.5px; padding: 9px 12px; background: var(--panel2); border-radius: 8px; margin: 8px 0; }
+  .practions b { color: var(--brass); }
+  .prlog { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.9; }
+  .prbtn { appearance: none; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); border-radius: 8px; padding: 9px 13px; font-size: 14px; cursor: pointer; }
+  .prbtn.main { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); font-weight: 700; }
+  .prbtn.danger { border-color: var(--red); color: var(--red); }
 
   /* 结果 */
   .stage { font-size: 12px; color: var(--muted); letter-spacing: 2px; }
@@ -275,6 +299,7 @@
 
   <nav class="tabs" role="tablist">
     <button role="tab" aria-selected="true" data-tab="calc">算牌</button>
+    <button role="tab" aria-selected="false" data-tab="train">陪练</button>
     <button role="tab" aria-selected="false" data-tab="chart">起手表</button>
     <button role="tab" aria-selected="false" data-tab="tips">秘籍</button>
     <button role="tab" aria-selected="false" data-tab="rules">规则</button>
@@ -285,9 +310,10 @@
     <details class="howto">
       <summary>第一次用？9人局三步上手</summary>
       <ol>
-        <li><b>发完底牌</b>：点亮你那两张。「对手人数」填<b>还没弃牌的人数</b>——9人桌开局填8，之后谁弃牌就随手减1。</li>
+        <li><b>发完底牌</b>：点亮你那两张。「几人局」选<b>桌上还没弃牌的人数（含你）</b>——9人桌开局选9，之后谁弃牌就改小一档。</li>
         <li><b>有人下重注</b>：切到「下重注」档——工具只把<b>下注那一个人</b>当成有好牌，其他人按正常算。再把底池和要跟的钱填上，AI 会按他下注的大小自动估他几成在演。</li>
         <li><b>公共牌发一张点一张</b>：胜率和「军师建议」实时更新，照着做就行——胜率条上那道白线是及格线，过线就是领先。</li>
+        <li><b>没上过真桌？</b>先去「陪练」页开一局，跟 AI 打几手练熟流程，零成本。</li>
       </ol>
     </details>
     <section class="panel">
@@ -301,10 +327,18 @@
       <p class="pickhint" id="pickhint">先选你手里的两张底牌；翻牌后再把公共牌点进去。</p>
       <div class="controls">
         <div class="stepper">
-          <span class="steplabel">对手人数</span>
-          <button id="oppMinus" aria-label="减少对手">−</button>
-          <span class="num" id="oppNum">1</span>
-          <button id="oppPlus" aria-label="增加对手">+</button>
+          <span class="steplabel">几人局</span>
+          <select id="tableSize" class="sel" aria-label="几人局">
+            <option value="2">2人局（单挑）</option>
+            <option value="3">3人局</option>
+            <option value="4">4人局</option>
+            <option value="5">5人局</option>
+            <option value="6">6人局（短桌）</option>
+            <option value="7">7人局</option>
+            <option value="8">8人局</option>
+            <option value="9" selected>9人局（标准满桌）</option>
+            <option value="10">10人局（顶格）</option>
+          </select>
         </div>
         <button class="clearbtn" id="clearAll">清空重来</button>
       </div>
@@ -369,6 +403,30 @@
     </section>
   </div>
 
+  <!-- ================= 陪练 ================= -->
+  <div id="tab-train" hidden>
+    <section class="panel">
+      <h2>陪练房<span class="en">虚拟筹码 · 练熟流程再上真桌</span></h2>
+      <div class="controls">
+        <div class="stepper">
+          <span class="steplabel">几人局</span>
+          <select id="prSize" class="sel" aria-label="陪练几人局"></select>
+        </div>
+        <button class="clearbtn" id="prStart">开一局</button>
+      </div>
+      <p class="pickhint">盲注 5/10，每人 1000 起，输光自动补。对手里有紧有松有爱冲的，跟真实牌桌一样。轮到你时军师会在旁边支招。</p>
+      <p class="pickhint" id="prScore" style="color:var(--brass)"></p>
+    </section>
+    <section class="panel" id="prTable" hidden>
+      <div id="prSeats"></div>
+      <div class="prboard" id="prBoard"></div>
+      <div class="prmine" id="prMine"></div>
+      <div class="practions" id="prAdvice" hidden></div>
+      <div class="controls" id="prButtons" style="flex-wrap:wrap; justify-content:flex-start"></div>
+      <div class="prlog" id="prLog"></div>
+    </section>
+  </div>
+
   <!-- ================= 起手表 ================= -->
   <div id="tab-chart" hidden>
     <section class="panel">
@@ -387,12 +445,22 @@
   <!-- ================= 秘籍 ================= -->
   <div id="tab-tips" hidden>
     <section class="panel">
-      <h2>克敌八招<span class="en">专治爱嘲讽爱冲的朋友</span></h2>
-      <ul class="tips" id="exploitList"></ul>
+      <h2>铁律五条<span class="en">两千万局模拟跑出来的硬道理</span></h2>
+      <ul class="tips" id="ironList"></ul>
     </section>
 
     <section class="panel">
-      <h2>他大概率在犯的错<span class="en">业余玩家九大漏洞</span></h2>
+      <h2>数字真相<span class="en">反直觉，但都是算出来的</span></h2>
+      <ul class="tips" id="factList"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>四种对手怎么打<span class="en">先归类，再下手</span></h2>
+      <ul class="tips redsuit" id="oppTypeList"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>输钱自查清单<span class="en">对照数数自己中几条</span></h2>
       <ul class="tips redsuit" id="leakList"></ul>
     </section>
 
@@ -612,16 +680,16 @@ function buildAllowed(pct) {
 /* ========== 数据：起手牌分档 / 秘籍 / 规则 ========== */
 var TIERS = {
   1: { label: '顶级牌', color: 't1', verdict: ['加注', 'v-raise'],
-       advice: '拿到就是今晚的主菜。任何位置都主动加注，别平跟、别装。对面爱冲的朋友再加注你？正合你意，直接加回去甚至全下。这几手是你赢他钱的主力。',
+       advice: '拿到就是发工资的日子。任何位置都主动加注，别平跟、别慢玩。被反加注？正合你意，直接加回去甚至全下。这几手牌是你利润的主要来源。',
        hands: ['AA','KK','QQ','AKs','AKo'] },
   2: { label: '强牌', color: 't2', verdict: ['加注', 'v-raise'],
        advice: '任何位置都可以加注进场。被反加时别慌，跟注看翻牌是常规操作。但 JJ/TT 怕翻出A和K、AQ怕撞上AK——翻牌不利、他又下重注时，能扔就扔，别硬顶。',
        hands: ['JJ','TT','AQs','AQo','AJs','KQs'] },
   3: { label: '不错的牌', color: 't3', verdict: ['挑位置玩', 'v-mixed'],
-       advice: '中后位（靠后说话）加注进场，前位少玩。翻牌中了顶对或好听牌就继续，没中就老实弃牌。对爱冲的对手，中顶对可以多跟一两条街抓诈，但他把身家全推进来时要冷静。',
+       advice: '中后位（靠后说话）加注进场，前位少玩。翻牌中了顶对或好听牌就继续，没中就老实弃牌。对面把身家全推进来时要冷静。',
        hands: ['99','88','ATs','AJo','KQo','KJs','KTs','QJs','QTs','JTs'] },
   4: { label: '投机牌', color: 't4', verdict: ['便宜看翻牌', 'v-mixed'],
-       advice: '目标是花小钱博大牌：小对子想中暗三条，同花连牌想中同花/顺子。没人加注或加注不大时跟一手看看；翻牌只中个小对小听牌，别恋战。中了暗三条或两对，就轮到你慢慢收割他了。',
+       advice: '目标是花小钱博大牌：小对子想中暗三条，同花连牌想中同花/顺子。没人加注或加注不大时跟一手看看；翻牌只中个小对小听牌，别恋战。中了暗三条或两对，就轮到你收割了。',
        hands: ['77','66','55','44','33','22','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s','T9s','98s','87s','76s','ATo','KJo','QJo'] },
   5: { label: '边缘牌', color: 't5', verdict: ['后位偷鸡', 'v-mixed'],
        advice: '只在你是最后几个说话、前面没人加注时偶尔玩一下。对面一加注，直接扔，一秒都不用想。',
@@ -632,26 +700,36 @@ var TIERS = {
 var TIER_OF = {};
 for (var tk in TIERS) TIERS[tk].hands.forEach(function (h) { TIER_OF[h] = +tk; });
 
-var EXPLOITS = [
-  '<b>收紧起手牌</b>：他玩得越浪，你越要挑食。你只用好牌进场，长期就是拿真枪打他的水枪。',
-  '<b>有大牌别赶他走</b>：中了两对、三条别急着大加注吓跑他，多用跟注和过牌，让他自己一路替你下注——爱诈唬的人最喜欢往别人挖好的坑里跳。',
-  '<b>抓诈可以更大胆</b>：对他这种逢场必冲的，顶对好踢脚就够跟到底了。心里默念：他大部分下注都是空气。',
-  '<b>抢他左边的座位</b>：坐他左手边，每轮都是他先动你后动，看清他干了什么再决定，等于开了半张明牌。',
-  '<b>嘲讽全当耳边风</b>：他嘲讽就是想让你上头乱打，这是他唯一的"技术"。你被激怒的那一刻就已经输了。可以笑着弃牌，赢钱的时候再笑一次。',
-  '<b>别去诈唬他</b>：爱跟注的人是全世界最差的诈唬对象——他根本不管你代表什么牌。你的钱靠真牌赢，不靠演技。',
-  '<b>学一招过牌-加注</b>：有强牌时先过牌，引他开枪下注，然后加注回去。对手越凶，这招越收钱。',
-  '<b>留意他反常的时刻</b>：平时咋咋呼呼的人突然安静、秒下超大注、或反常地怂了，往往真有大牌。他99%时间在演，剩下1%别去送。'
+var IRON = [
+  '<b>只玩两成起手牌</b>：一晚上七八成的牌直接扔。不是怂，是模拟算出来的最优解——烂牌进场，赢是小赢，输是大输，长期必亏。',
+  '<b>位置就是钱</b>：越晚说话，掌握的信息越多。同一手牌，最后说话敢玩，最先说话就该扔——庄家按钮位是全桌最好的座位。',
+  '<b>下注要有理由</b>：要么牌好要价值，要么想赶走比你好的牌。两个理由都说不出口，就过牌。',
+  '<b>价格不对不追牌</b>：听牌先数补牌 ×4/×2，再对底池赔率——够就追，不够就扔，一次都别破例。破例一次，就会破例一晚上。',
+  '<b>每手牌都是新的</b>：牌堆没有记忆，上一把输的不欠你。想"找回来"的那一刻，你已经开始送钱了。'
+];
+var FACTS = [
+  '<b>AA 单挑赢 85%，9人桌只赢 35%</b>：人越多，好牌越不保值。满桌拿大对子要加大注赶人，别放一桌人便宜看翻牌。',
+  '<b>AK 翻牌只有 1/3 概率中对</b>：大多数翻牌、大多数人，什么都没中——所以敢先出手下注的人，经常直接把底池偷走。',
+  '<b>同花听牌到河牌只成 35%</b>：三次里两次不成。成了是惊喜，没成是常态，别把听牌当成牌。',
+  '<b>口袋对子中暗三条只有 12%</b>：小对子的玩法是便宜看翻牌——中了闷声发大财，没中转身就走。',
+  '<b>拿到 AA 的概率是 1/221</b>：平均两百多手才来一次。来了就是发工资的日子，千万别玩小了。',
+  '<b>两张不成对的牌，翻牌完全落空的概率约 2/3</b>：对手也一样——他下注不代表他中了，只代表他敢。'
+];
+var OPP_TYPES = [
+  '<b>跟注站（什么都跟）</b>：永远别诈唬他。有牌就下注要钱，一路下到底——他的钱是"付账"给你的，不需要演技。',
+  '<b>疯子型（乱加注乱冲）</b>：收紧等牌，中了顶对以上就跟他到底。他大部分下注是空气，你要做的是别被吓跑、也别陪他疯。',
+  '<b>石头型（只玩大牌）</b>：他不下注你就小注偷池，他一加注你立刻放弃——这种人亮肌肉的时候从不骗人。',
+  '<b>正常人</b>：拼纪律和位置，谁失误少谁赢。把铁律五条执行到底就够了。'
 ];
 var LEAKS = [
-  '<b>玩太多起手牌</b>：什么牌都觉得"万一中了呢"，这是业余玩家亏钱的第一大原因。',
-  '<b>好牌只平跟不加注</b>：既要不到价值，又让一堆烂牌便宜看翻牌反超自己。',
-  '<b>顶对舍不得扔</b>：中个顶对就觉得天下无敌，对面加了又加还死跟，撞上两对三条才傻眼。',
-  '<b>诈唬时机稀烂</b>：要么从不诈唬（牌全写在下注上），要么逢场必诈、被抓了下一手还诈。',
-  '<b>追听牌不算账</b>：听同花听顺子时不管对面下多大都跟，赔率不够也要"赌一把"。',
-  '<b>上头（tilt）</b>：输一手大的就急着找场子，乱加注乱跟注，一晚上利润半小时送光。',
-  '<b>下注尺寸出卖自己</b>：有大牌不敢下怕吓跑人，诈唬反而推超大注，看下注大小就知道他有没有牌。',
-  '<b>完全不看位置</b>：先说话后说话打法一模一样，白白放弃后位的信息优势。',
-  '<b>情绪全写在脸上</b>：中牌就兴奋、没中就叹气、被激两句就梭哈——这些比牌本身还好读。'
+  '<b>什么牌都想玩</b>："万一中了呢"是业余玩家亏钱的第一大原因。',
+  '<b>好牌只平跟不加注</b>：既要不到价值，又放一群烂牌便宜看翻牌反超自己。',
+  '<b>顶对舍不得扔</b>：对面加了又加还死跟，撞上两对三条才傻眼。',
+  '<b>追听牌不算账</b>：赔率不够也要"赌一把"。',
+  '<b>输了想立刻找回来</b>：上头半小时，送光一晚上。',
+  '<b>下注大小出卖情绪</b>：大牌不敢下怕吓跑人，诈唬反而推超大注——明眼人看注码就能读穿。',
+  '<b>完全不看位置</b>：先说话后说话一个打法，白白扔掉信息优势。',
+  '<b>情绪全写在脸上</b>：中牌就兴奋，没中就叹气，被激两句就梭哈。'
 ];
 var RANKINGS = [
   ['皇家同花顺','Royal Flush',[['A♠',0],['K♠',0],['Q♠',0],['J♠',0],['10♠',0]]],
@@ -692,7 +770,7 @@ var tabs = document.querySelectorAll('nav.tabs button');
 tabs.forEach(function (b) {
   b.addEventListener('click', function () {
     tabs.forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-    ['calc','chart','tips','rules'].forEach(function (t) {
+    ['calc','train','chart','tips','rules'].forEach(function (t) {
       $('tab-' + t).hidden = (t !== b.dataset.tab);
     });
   });
@@ -701,7 +779,7 @@ tabs.forEach(function (b) {
 /* ========== 算牌页：槽位 + 选牌器 ========== */
 var SLOT_LABELS = ['底牌', '底牌', '翻牌', '翻牌', '翻牌', '转牌', '河牌'];
 var slots = [-1,-1,-1,-1,-1,-1,-1];
-var activeSlot = 0, nOpp = 1;
+var activeSlot = 0, nOpp = 8;
 
 function buildSlots() {
   var hg = $('holeGroup'), bg = $('boardGroup');
@@ -776,8 +854,7 @@ $('clearAll').addEventListener('click', function () {
   slots = [-1,-1,-1,-1,-1,-1,-1]; activeSlot = 0;
   renderSlots(); renderPicker(); scheduleCompute();
 });
-$('oppMinus').addEventListener('click', function () { if (nOpp > 1) { nOpp--; $('oppNum').textContent = nOpp; scheduleCompute(); } });
-$('oppPlus').addEventListener('click', function () { if (nOpp < 8) { nOpp++; $('oppNum').textContent = nOpp; scheduleCompute(); } });
+$('tableSize').addEventListener('change', function () { nOpp = +this.value - 1; scheduleCompute(); });
 $('potInput').addEventListener('input', scheduleCompute);
 $('callInput').addEventListener('input', scheduleCompute);
 var forceIters = null;
@@ -1028,9 +1105,311 @@ function buildRanks() {
   }).join('');
 }
 
+/* ========== 陪练模式 ========== */
+var PR_NAMES = ['阿强', '老王', '小李', '大刘', '阿芳', '老赵', '小陈', '胖哥', '燕子'];
+var PR_STYLES = ['loose', 'normal', 'tight', 'normal', 'loose', 'normal', 'tight', 'normal', 'normal'];
+var PR_STYLE_DEF = {
+  loose:  { open: 30, limp: 62, vsRaiseCall: 40, vsRaiseRaise: 14, bluff: 0.20, margin: -4 },
+  normal: { open: 16, limp: 40, vsRaiseCall: 24, vsRaiseRaise: 8,  bluff: 0.09, margin: 3 },
+  tight:  { open: 11, limp: 20, vsRaiseCall: 14, vsRaiseRaise: 6,  bluff: 0.03, margin: 8 }
+};
+var PCTL = {};
+(function () {
+  var cum = 0;
+  for (var i = 0; i < RANKED169.length; i++) {
+    var c = RANKED169[i], w = c.length === 2 ? 6 : c[2] === 's' ? 4 : 12;
+    cum += w; PCTL[c] = cum / 1326 * 100;
+  }
+})();
+var PR_SB = 5, PR_BB = 10, PR_STACK = 1000;
+var pr = null, prSeq = 0;
+
+(function () {
+  var sel = $('prSize');
+  for (var n = 2; n <= 10; n++) {
+    var o = document.createElement('option');
+    o.value = n;
+    o.textContent = n + '人局' + (n === 2 ? '（单挑）' : n === 6 ? '（短桌）' : n === 9 ? '（标准满桌）' : '');
+    if (n === 9) o.selected = true;
+    sel.appendChild(o);
+  }
+})();
+
+function prDelay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function prPotTotal() { var s = 0; pr.players.forEach(function (p) { s += p.contrib; }); return s; }
+function prAlive() { return pr.players.filter(function (p) { return !p.folded; }); }
+function pcHtml(c) { return '<span class="pc' + (isRed(c) ? ' red' : '') + '">' + RANK_CH[c >> 2] + SUIT_CH[c & 3] + '</span>'; }
+function prLog(msg) { pr.logs.unshift(msg); if (pr.logs.length > 7) pr.logs.pop(); $('prLog').innerHTML = pr.logs.map(function (m) { return '<div>' + m + '</div>'; }).join(''); }
+function prPost(p, amt) {
+  amt = Math.min(amt, p.stack);
+  p.stack -= amt; p.bet += amt; p.contrib += amt;
+  if (p.stack === 0) p.allin = true;
+  return amt;
+}
+
+$('prStart').addEventListener('click', function () {
+  var n = +$('prSize').value;
+  pr = { n: n, hand: 0, dealer: -1, players: [], logs: [] };
+  pr.players.push({ name: '你', human: true, stack: PR_STACK, buyin: PR_STACK });
+  for (var i = 0; i < n - 1; i++) {
+    pr.players.push({ name: PR_NAMES[i], human: false, stack: PR_STACK, buyin: PR_STACK, style: PR_STYLES[i] });
+  }
+  $('prTable').hidden = false;
+  $('prButtons').innerHTML = ''; $('prAdvice').hidden = true; $('prLog').innerHTML = '';
+  prNextHand();
+});
+
+function prNextHand() {
+  if (pr.inHand) return; /* 手牌进行中不许开下一手（防残留按钮误触） */
+  pr.inHand = true;
+  $('prButtons').innerHTML = ''; $('prAdvice').hidden = true;
+  var sess = ++prSeq;
+  pr.hand++; pr.logs = [];
+  pr.players.forEach(function (p) {
+    if (p.stack <= 0) { p.stack += PR_STACK; p.buyin += PR_STACK; }
+    p.folded = false; p.allin = false; p.bet = 0; p.contrib = 0; p.acted = false; p.show = false; p.val = 0;
+  });
+  pr.dealer = (pr.dealer + 1) % pr.n;
+  var deck = [];
+  for (var c = 0; c < 52; c++) deck.push(c);
+  for (var i = 51; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
+  pr.deck = deck; pr.di = 0; pr.board = [];
+  pr.players.forEach(function (p) { p.hole = [deck[pr.di++], deck[pr.di++]]; });
+  var sb, bb;
+  if (pr.n === 2) { sb = pr.dealer; bb = (pr.dealer + 1) % 2; }
+  else { sb = (pr.dealer + 1) % pr.n; bb = (pr.dealer + 2) % pr.n; }
+  prPost(pr.players[sb], PR_SB); prPost(pr.players[bb], PR_BB);
+  pr.currentBet = PR_BB; pr.minRaise = PR_BB;
+  prLog('—— 第 ' + pr.hand + ' 手 · 庄家 ' + pr.players[pr.dealer].name + ' · ' + pr.players[sb].name + ' 小盲 ' + PR_SB + ' / ' + pr.players[bb].name + ' 大盲 ' + PR_BB + ' ——');
+  prRender(null, false);
+  prPlay(sess, pr.n === 2 ? sb : (bb + 1) % pr.n);
+}
+
+async function prPlay(sess, preflopStart) {
+  await prStreet(sess, preflopStart);
+  if (pr === null || pr.seqGuard !== undefined) {}
+  if (prSeq !== sess) return;
+  var streets = [3, 1, 1], names = ['翻牌', '转牌', '河牌'];
+  var postStart = (pr.dealer + 1) % pr.n;
+  for (var s = 0; s < 3; s++) {
+    if (prAlive().length <= 1) break;
+    await prDelay(500);
+    if (prSeq !== sess) return;
+    for (var k = 0; k < streets[s]; k++) pr.board.push(pr.deck[pr.di++]);
+    pr.players.forEach(function (p) { p.bet = 0; p.acted = false; });
+    pr.currentBet = 0; pr.minRaise = PR_BB;
+    prLog(names[s] + '：' + pr.board.slice(-streets[s]).map(function (c) { return RANK_CH[c >> 2] + SUIT_CH[c & 3]; }).join(' '));
+    prRender(null, false);
+    await prStreet(sess, postStart);
+    if (prSeq !== sess) return;
+  }
+  prShowdown();
+}
+
+async function prStreet(sess, start) {
+  if (pr.players.filter(function (p) { return !p.folded && !p.allin; }).length <= 1 &&
+      !pr.players.some(function (p) { return !p.folded && !p.allin && p.bet < pr.currentBet; })) return;
+  var idx = start, guard = 0;
+  while (guard++ < 300) {
+    if (prSeq !== sess) return;
+    if (prAlive().length <= 1) return;
+    var pending = pr.players.filter(function (p) { return !p.folded && !p.allin && (!p.acted || p.bet < pr.currentBet); });
+    if (pending.length === 0) return;
+    var p = pr.players[idx];
+    if (!p.folded && !p.allin && (!p.acted || p.bet < pr.currentBet)) {
+      prRender(p, false);
+      var act;
+      if (p.human) { act = await prHumanTurn(p); }
+      else { await prDelay(420); if (prSeq !== sess) return; act = prAiDecide(p); }
+      if (prSeq !== sess) return;
+      prApply(p, act);
+      p.acted = true;
+      prRender(null, false);
+    }
+    idx = (idx + 1) % pr.n;
+  }
+}
+
+function prApply(p, act) {
+  if (act.type === 'fold') { p.folded = true; prLog(p.name + ' 弃牌'); return; }
+  if (act.type === 'check') { prLog(p.name + ' 过牌'); return; }
+  if (act.type === 'call') {
+    var need = pr.currentBet - p.bet;
+    var paid = prPost(p, need);
+    prLog(p.name + (p.allin ? ' 全下跟注 ' : ' 跟注 ') + paid);
+    return;
+  }
+  var target = Math.min(act.to, p.bet + p.stack);
+  prPost(p, target - p.bet);
+  if (p.bet > pr.currentBet) {
+    pr.minRaise = Math.max(pr.minRaise, p.bet - pr.currentBet);
+    pr.currentBet = p.bet;
+    pr.players.forEach(function (q) { if (q !== p && !q.folded && !q.allin) q.acted = false; });
+    prLog(p.name + (p.allin ? ' 全下 ' : ' 加注到 ') + p.bet);
+  } else {
+    prLog(p.name + ' 全下 ' + p.bet);
+  }
+}
+
+function prAiDecide(p) {
+  var st = PR_STYLE_DEF[p.style];
+  var toCall = pr.currentBet - p.bet;
+  var pot = prPotTotal();
+  var opps = prAlive().length - 1;
+  var r = Math.random();
+  if (pr.board.length === 0) {
+    var pct = PCTL[holeCode(p.hole[0], p.hole[1])];
+    if (toCall <= 0) {
+      if (pct < st.open * 0.7 || r < st.bluff * 0.5) return { type: 'raise', to: pr.currentBet + Math.max(pr.minRaise, Math.round(pot * 0.75 / 5) * 5) };
+      return { type: 'check' };
+    }
+    if (pr.currentBet <= PR_BB) {
+      if (pct < st.open || r < st.bluff) return { type: 'raise', to: Math.max(pr.currentBet + pr.minRaise, PR_BB * 3) };
+      if (pct < st.limp) return { type: 'call' };
+      return { type: 'fold' };
+    }
+    if (pct < st.vsRaiseRaise && r < 0.55) return { type: 'raise', to: Math.round(pr.currentBet * 2.5 / 5) * 5 };
+    if (pct < st.vsRaiseCall && toCall < p.stack * 0.4) return { type: 'call' };
+    if (pct < st.vsRaiseRaise) return { type: 'call' };
+    return { type: 'fold' };
+  }
+  var eq = simulate(p.hole, pr.board, Math.max(1, opps), 300).equity * 100 + (Math.random() - 0.5) * 10;
+  var needed = toCall > 0 ? toCall / (pot + toCall) * 100 : 0;
+  if (toCall <= 0) {
+    if (eq > 58 || r < st.bluff) return { type: 'raise', to: Math.max(pr.minRaise, Math.round(pot * 0.6 / 5) * 5) };
+    return { type: 'check' };
+  }
+  if (eq > needed + 28 && r < 0.55) return { type: 'raise', to: Math.round((pr.currentBet * 2 + pot * 0.4) / 5) * 5 };
+  if (eq > needed + st.margin) return { type: 'call' };
+  if (r < st.bluff * 0.4 && toCall < pot * 0.35) return { type: 'call' };
+  return { type: 'fold' };
+}
+
+function prHumanTurn(p) {
+  return new Promise(function (resolve) {
+    var toCall = pr.currentBet - p.bet;
+    var pot = prPotTotal();
+    prShowAdvice(p, toCall, pot);
+    var btns = [];
+    if (toCall > 0) {
+      btns.push({ label: '弃牌', cls: 'danger', act: { type: 'fold' } });
+      btns.push({ label: (toCall >= p.stack ? '全下跟注 ' : '跟注 ') + Math.min(toCall, p.stack), cls: 'main', act: { type: 'call' } });
+    } else {
+      btns.push({ label: '过牌', cls: 'main', act: { type: 'check' } });
+    }
+    if (p.stack > toCall) {
+      var half = pr.currentBet + Math.max(pr.minRaise, Math.round((pot + toCall) * 0.5 / 5) * 5);
+      var full = pr.currentBet + Math.max(pr.minRaise, Math.round((pot + toCall) / 5) * 5);
+      var maxTo = p.bet + p.stack;
+      if (half < maxTo) btns.push({ label: (pr.currentBet > 0 ? '加注到 ' : '下注 ') + half, act: { type: 'raise', to: half } });
+      if (full < maxTo && full > half) btns.push({ label: (pr.currentBet > 0 ? '加注到 ' : '下注 ') + full, act: { type: 'raise', to: full } });
+      btns.push({ label: '全下 ' + maxTo, cls: 'danger', act: { type: 'raise', to: maxTo } });
+    }
+    var el = $('prButtons'); el.innerHTML = '';
+    btns.forEach(function (b) {
+      var btn = document.createElement('button');
+      btn.className = 'prbtn' + (b.cls ? ' ' + b.cls : '');
+      btn.textContent = b.label;
+      btn.addEventListener('click', function () { el.innerHTML = ''; $('prAdvice').hidden = true; resolve(b.act); });
+      el.appendChild(btn);
+    });
+  });
+}
+
+function prShowAdvice(p, toCall, pot) {
+  var opps = prAlive().length - 1;
+  var raised = pr.board.length === 0 ? pr.currentBet > PR_BB : pr.currentBet > 0;
+  var res = simulate(p.hole, pr.board, Math.max(1, opps), 3000,
+    raised ? getAllowed(15) : null, raised ? 0.25 : 0, raised ? getAllowed(40) : null, raised ? 1 : Math.max(1, opps));
+  var E = res.equity * 100;
+  var needed = toCall > 0 ? toCall / (pot + toCall) * 100 : null;
+  var fair = 100 / (opps + 1);
+  var tip;
+  if (needed !== null) {
+    tip = E > needed + 15 ? '跟注没问题，牌够硬可以加注' : E > needed + 3 ? '可以跟注' : E > needed - 3 ? '边缘，看你对他的判断' : '建议弃牌';
+  } else {
+    tip = E > Math.max(60, fair + 22) ? '领先，下注要价值' : E >= fair ? '过线了，可下注可过牌' : '落后，过牌为主';
+  }
+  $('prAdvice').hidden = false;
+  $('prAdvice').innerHTML = '♠ 军师：胜率约 <b>' + E.toFixed(0) + '%</b>' +
+    (needed !== null ? '，跟这口注需要 <b>' + needed.toFixed(0) + '%</b>' : '，及格线 ' + fair.toFixed(0) + '%') +
+    ' → <b>' + tip + '</b>';
+}
+
+function prShowdown() {
+  var alive = prAlive();
+  var pot = prPotTotal();
+  if (alive.length === 1) {
+    alive[0].stack += pot;
+    prLog(alive[0].name + ' 其他人都弃牌，直接收下底池 ' + pot);
+  } else {
+    alive.forEach(function (p) { p.show = true; p.val = evaluate7(p.hole.concat(pr.board)); });
+    var levels = [];
+    pr.players.forEach(function (p) { if (p.contrib > 0 && levels.indexOf(p.contrib) < 0) levels.push(p.contrib); });
+    levels.sort(function (a, b) { return a - b; });
+    var prev = 0, wonMap = {};
+    levels.forEach(function (lv) {
+      var amt = 0;
+      pr.players.forEach(function (p) { amt += Math.max(0, Math.min(p.contrib, lv) - prev); });
+      var elig = alive.filter(function (p) { return p.contrib >= lv; });
+      if (elig.length === 0) { prev = lv; return; }
+      var best = -1;
+      elig.forEach(function (p) { if (p.val > best) best = p.val; });
+      var winners = elig.filter(function (p) { return p.val === best; });
+      var base = Math.floor(amt / winners.length);
+      winners.forEach(function (w, i) {
+        var got = base + (i === 0 ? amt - base * winners.length : 0);
+        w.stack += got;
+        wonMap[w.name] = (wonMap[w.name] || 0) + got;
+      });
+      prev = lv;
+    });
+    pr.players.forEach(function (p) {
+      if (wonMap[p.name]) prLog(p.name + ' 以「' + CAT_NAMES[handCategory(p.val)] + '」赢下 ' + wonMap[p.name]);
+    });
+  }
+  pr.players.forEach(function (p) { p.contrib = 0; p.bet = 0; }); /* 底池已分完，清零显示 */
+  pr.inHand = false;
+  prRender(null, true);
+  var el = $('prButtons'); el.innerHTML = '';
+  var btn = document.createElement('button');
+  btn.className = 'prbtn main'; btn.textContent = '下一手';
+  btn.addEventListener('click', function () { el.innerHTML = ''; prNextHand(); });
+  el.appendChild(btn);
+}
+
+function prRender(actor, showdown) {
+  var rows = '';
+  for (var i = 1; i < pr.n; i++) {
+    var p = pr.players[i];
+    var cards;
+    if (showdown && !p.folded) cards = pcHtml(p.hole[0]) + pcHtml(p.hole[1]) + ' <span style="color:var(--brass);font-size:12px">' + CAT_NAMES[handCategory(p.val)] + '</span>';
+    else if (p.folded) cards = '<span style="font-size:12px">弃牌</span>';
+    else cards = '<span class="pcback"></span><span class="pcback"></span>';
+    rows += '<div class="seatrow' + (p.folded ? ' folded' : '') + (actor === p ? ' turn' : '') + '">' +
+      '<span class="sname">' + (i === pr.dealer ? 'Ⓓ' : '') + p.name + '</span>' +
+      '<span class="sstack">筹码 ' + p.stack + '</span>' +
+      '<span class="sbet">' + (p.bet > 0 ? '注 ' + p.bet : '') + '</span>' +
+      '<span class="scards">' + cards + '</span></div>';
+  }
+  $('prSeats').innerHTML = rows;
+  var bd = '';
+  for (var j = 0; j < pr.board.length; j++) bd += pcHtml(pr.board[j]);
+  for (j = pr.board.length; j < 5; j++) bd += '<span class="pc" style="opacity:.15">?</span>';
+  $('prBoard').innerHTML = bd + '<span class="pot">底池 ' + prPotTotal() + '</span>';
+  var me = pr.players[0];
+  $('prMine').innerHTML = (pr.dealer === 0 ? 'Ⓓ ' : '') + '你：' + pcHtml(me.hole[0]) + pcHtml(me.hole[1]) +
+    ' <span class="sstack">筹码 ' + me.stack + '</span>' +
+    (me.bet > 0 ? '<span class="sbet">注 ' + me.bet + '</span>' : '') +
+    (me.folded ? ' <span style="color:var(--red)">已弃牌</span>' : '') +
+    (actor === me ? ' <b style="color:var(--brass)">← 轮到你</b>' : '');
+  $('prScore').textContent = '本场盈亏：' + (me.stack - me.buyin >= 0 ? '+' : '') + (me.stack - me.buyin) + '（第 ' + pr.hand + ' 手）';
+}
+
 /* ========== 启动 ========== */
 buildSlots(); buildPicker(); buildGrid();
-fillList('exploitList', EXPLOITS); fillList('leakList', LEAKS); fillList('ruleTraps', TRAPS);
+fillList('ironList', IRON); fillList('factList', FACTS); fillList('oppTypeList', OPP_TYPES);
+fillList('leakList', LEAKS); fillList('ruleTraps', TRAPS);
 renderOuts(); buildRanks();
 </script>
 
